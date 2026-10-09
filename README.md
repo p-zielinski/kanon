@@ -48,4 +48,4 @@ PYTHONPATH=src python -m kanon.run --fresh --rounds 20 --seed 0
 
 `runs/<seed>/weight_check.json` — czy taśma grupy była pusta i czy wagi grupy ruszyły się od startu.
 
-Specyfikacja jest w [PLAN.md](PLAN.md). Środowisko jest w [docs/SETUP.md](docs/SETUP.md).
+Specyfikacja v1 jest w [PLAN.md](PLAN.md). Plan v2 i prompty na rano są w [PLAN_V2.md](PLAN_V2.md) i [PROMPTS_V2.md](PROMPTS_V2.md). Środowisko jest w [docs/SETUP.md](docs/SETUP.md).

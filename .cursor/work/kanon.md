@@ -98,7 +98,7 @@ Cztery plastyczne sieci w zamkniętym języku termów mają zbudować kanon proc
 
 ## Next steps
 
-1. v1 jest zgodne z planem. Dalszej pracy ten plik nie otwiera.
+1. Rano, gdy `runs/0/metrics.csv` ma wiersze, odpal po jednym promptcie z `PROMPTS_V2.md`. Najpierw odczyt. Piątego agenta dodaje dopiero otwarta bramka.
 
 ## Blockers / open questions
 
