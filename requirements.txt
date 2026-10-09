@@ -1,0 +1,3 @@
+# Wagi biorą się z losowej inicjalizacji. Instalacja to wyłącznie biblioteka.
+torch
+pytest
