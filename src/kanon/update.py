@@ -88,6 +88,23 @@ class Tape:
         breaks = self._breaks if role is Role.BREAKER else ()
         return own + self._canon + breaks
 
+    def export_traces(self) -> tuple[tuple[int, str, str], ...]:
+        return tuple((item.agent, item.role.value, item.text) for item in self._traces)
+
+    def import_traces(self, rows: Sequence[tuple[int, str, str]]) -> None:
+        self._traces = [Trace(agent, Role(role), text) for agent, role, text in rows]
+
+    def export_optimizer(self, module: Decoder) -> dict | None:
+        found = self._optim.get(id(module))
+        if found is None:
+            return None
+        return found.state_dict()
+
+    def import_optimizer(self, module: Decoder, state: dict | None) -> None:
+        if state is None:
+            return
+        self._optimizer(module).load_state_dict(state)
+
     def _optimizer(self, module: Decoder) -> torch.optim.AdamW:
         key = id(module)
         found = self._optim.get(key)

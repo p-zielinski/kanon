@@ -2,7 +2,7 @@
 
 > Last updated: 2026-10-09
 > Branch: `main`
-> Status: in progress
+> Status: done
 
 ## Problem & goal
 
@@ -68,7 +68,7 @@ Cztery plastyczne sieci w zamkniętym języku termów mają zbudować kanon proc
 - 2026-10-09: obserwacja to `[CANON] … [SEP] [PAIRS] (num k) …`, potem dopisek roli i marker. Autor dostaje jeden wolny slot, łamacz ciało kandydata, użytkownik samą nazwę slotu. Obcy nie dostaje ciała odrzuconego kandydata ani termu z `TaskAudit.target`. Odpowiedź `[TRY]` liczy wyłącznie pięć par publicznych.
 - 2026-10-09: sampler (`sample(marker, observation, seed=…)`) losuje jednostajnie produkcję, która jeszcze mieści się w 64 tokenach i domyka komunikat. Autor: szkic albo `propose` po co najmniej jednym `[TRY]`, po czterech `[TRY]` tylko `propose`; ciało bez `num`, `call` tylko do slotów z kanonu, slot i arność z obserwacji. Użytkownik woła wskazanego kandydata. Obcy woła tylko sloty kanonu. Łamacz: `(abstain slot)` albo `(break slot (num k)…)` z `k` z 0..10, bez szkicu. `speak` przy ε = 1 woła ten sampler. Poniżej 1 każdy krok produkcji z prawdopodobieństwem ε bierze sampler, inaczej wagę z logitów sieci na tokenach, które tę produkcję odróżniają.
 - 2026-10-09: `build_agents()` daje cztery dekodery, ziarna 0..3, 4 warstwy, d_model 128, 4 głowy, d_ff 512, dropout 0. `distribution(ids, legal)` zwraca rozkład następnej produkcji i stawia 0 tam, gdzie maska jest fałszywa. Słownik to `TOKENS` plus głowy komunikatów. Zapis to `agent-0.bin`…`agent-3.bin` w podanym katalogu. Pętla rundy nie jest podłączona.
-- 2026-10-09: `play` przy ε = 1 bierze sampler. Poniżej 1 wymaga `choose`. Skrypt wstrzykuje komunikaty. Audyt 16 wejść startuje dopiero po przyjętym `propose`. Do kanonu wchodzi definicja niezbita, zgodna z targetem na audycie i wywołana w `use`, które samo przechodzi audyt zadania użytkownika. Zbicie łamacza idzie na cmentarz i audytu nie otwiera. Obcy widzi kanon i swoje pary, bez termu celu. `targets` w zdarzeniu trzyma termy autora, użytkownika i obcego obok obserwacji. `play` nie woła kroku uczenia.
+- 2026-10-09: `play` przy ε = 1 bierze sampler. Poniżej 1 wymaga `choose`. Skrypt wstrzykuje komunikaty. Audyt 16 wejść startuje dopiero po przyjętym `propose`. Do kanonu wchodzi definicja niezbita, zgodna z targetem na audycie i wywołana w `use`, które samo przechodzi audyt zadania użytkownika. Zbicie łamacza idzie na cmentarz i audytu nie otwiera. Obcy startuje po `admit`: zadanie i obserwacja biorą kanon już z tą definicją, bez termu celu i bez transkryptu sporu. `targets` w zdarzeniu trzyma termy autora, użytkownika i obcego obok obserwacji. `play` nie woła kroku uczenia.
 - 2026-10-09: taśma (`Tape`) trzyma zaakceptowane finały z rolą agenta, aktualny eksport kanonu i, tylko dla roli łamacza, zbicia z rozjazdem. Szkic i odrzut nie wchodzą. `step` to jeden AdamW (lr 3e-4, batch 32, przycięcie 1.0, entropia krzyżowa następnego tokenu, ciąg do 64). Pusta taśma pomija krok i nie tworzy optimizera. Jedna taśma, jeden optimizer na sieć. Ewaluacja tej funkcji nie woła.
 - 2026-10-09: `solo_round` to jedna sieć, cztery propozycje autora, szkice 1..4 przez ten sam `SlotSession`, przyjęcie tylko gdy 16 par audytowych się zgadza. Brak łamacza i użytkownika. Potem cztery wywołania `step`. Na taśmę idzie tylko przyjęty `propose`. `start_frozen` trzyma ziarno i jedną sieć obcego. `frozen_eval` czyta kanon grupy, nie woła `step` i nie zapisuje kanonu.
 - 2026-10-09: `run` przed rundą 0 buduje zbiór pomiarowy z `seed + 1_000_003`, zapisuje `holdout.json` i buduje zestaw rozwojowy 10 zadań na głębokość z `seed + 2_000_006`. Pętla woła `play` i `solo_round` z `close=False`, notuje taśmę, a gdy wypada pomiar — `score_tasks` bez `step`. Potem `step_all`, cztery kroki solo, i dopiero `end_round` na kanonie grupy i solo. Pomiar używa `speak` oraz wag obcego grupy, sieci solo i sieci zamrożonej. ε startuje w 1 i maleje ×0,995 do podłogi 0,05. Głębokość rośnie po dwóch ewaluacjach powyżej 0,6, sufit 4. Losowe wagi (ziarno 4) nie dostają kroku. Log: `events.jsonl`, `metrics.csv`, `holdout.json`, `weight_check.json`, `canon/snapshot.json`. `(num k)` spoza tokenów `0`–`3` rozwija się w `encode` do wieży `succ`.
@@ -92,10 +92,13 @@ Cztery plastyczne sieci w zamkniętym języku termów mają zbudować kanon proc
 - [x] Prompt 12 ponownie, na kodzie po poprawce. Lista niżej.
 - [x] Poprawka trzech rozjazdów z drugiego przeglądu: cmentarz w obserwacji łamacza, krok przed wygasaniem, ε na produkcjach. `pytest -q`: 99 passed.
 - [x] Prompt 12 trzeci raz, na kodzie po tej poprawce. Lista niżej. Kodu nie zmieniano.
+- [x] Obcy startuje po `admit`. `pytest -q`: 100 passed.
+- [x] Prompt 12 po tej poprawce. Lista niżej. Nowych rozjazdów nie było.
+- [x] Start i stop: domyślnie jedna runda, kontynuacja z `resume.pt`, `--fresh` usuwa zapis.
 
 ## Next steps
 
-1. Rozjazd jest w sekcji „Przegląd zgodności”. Ta sesja go nie naprawia.
+1. v1 jest zgodne z planem. Dalszej pracy ten plik nie otwiera.
 
 ## Blockers / open questions
 
@@ -120,10 +123,13 @@ Cztery plastyczne sieci w zamkniętym języku termów mają zbudować kanon proc
 - 2026-10-09: drugi przebieg promptu 12 porównał PLAN.md z kodem po poprawce. Testów nie odpalano. Kodu nie zmieniano.
 - 2026-10-09: poprawka trzech rozjazdów z drugiego przeglądu. `pytest -q`: 99 passed. To samo ostrzeżenie NumPy.
 - 2026-10-09: trzeci przebieg promptu 12 porównał PLAN.md z kodem po tej poprawce. Testów nie odpalano. Kodu nie zmieniano.
+- 2026-10-10: obcy liczy `solve` na kanonie po `admit`. `pytest -q`: 100 passed. To samo ostrzeżenie NumPy.
+- 2026-10-10: czwarty przebieg promptu 12. Nowych rozjazdów nie było. Kodu poza tą poprawką nie zmieniano.
+- 2026-10-10: jedno wywołanie `kanon.run` dopisuje rundy do `runs/<seed>/resume.pt`. Domyślnie jedną. `--fresh` kasuje zapis i zaczyna od rundy 0.
 
 ## Przegląd zgodności
 
-> 2026-10-09. Trzeci przebieg promptu 12, kod po poprawce cmentarza, kolejności kroku i ε. Kodu nie zmieniano. Testów nie odpalano.
+> 2026-10-10. Czwarty przebieg promptu 12, po przesunięciu obcego za `admit`. `pytest -q`: 100 passed.
 
 ### Lista kontrolna
 
@@ -131,10 +137,10 @@ Cztery plastyczne sieci w zamkniętym języku termów mają zbudować kanon proc
 - **zgodne.** Cztery niezależne zestawy wag, ziarna 0, 1, 2, 3. `src/kanon/model.py:27`, `89-90`. Solo i sieć zamrożona to osobne baseline (`src/kanon/run.py:55-56`, `208`, `211`), nie piąty agent grupy.
 - **zgodne.** Po rundzie grupy jest jeden krok na sieć (`src/kanon/run.py:283`), potem wygasanie (`286-287`). Solo robi cztery kroki przed `end_round` (`src/kanon/baselines.py:85-89`; w runnerze `src/kanon/run.py:284-287`).
 - **zgodne.** Ewaluacja pomiarowa nie woła `step` (`src/kanon/run.py:256-281` jest przed `283`). `frozen_eval` kroku nie woła (`src/kanon/baselines.py:102-119`). Koniec `run` sprawdza hash wag z ziarna 4 (`src/kanon/run.py:292-293`).
-- **zgodne.** Obserwacja nie czyta termu celu (`src/kanon/roles.py:129-148`). Termy autora, użytkownika i obcego są w `targets`, obok `observations` (`src/kanon/round.py:93-94`, `246-250`). Kolejność fazy obcego jest niżej.
+- **zgodne.** Obserwacja nie czyta termu celu (`src/kanon/roles.py:129-148`). Termy autora, użytkownika i obcego są w `targets`, obok `observations` (`src/kanon/round.py:93-94`, `250-254`).
 - **zgodne.** `(num k)` w ciele def jest błędem parsera (`src/kanon/language.py:365-367`). Ciało losowane dla autora nie oferuje `num` (`src/kanon/sample.py:95-129`). `num` zostaje w parach, w `[TRY]`, w argumentach `break` i we wejściach cmentarza.
 - **zgodne.** Rotacja jest wzorem z planu: autor `r%4`, łamacz `(r+1)%4`, użytkownik `(r+2)%4`, obcy `(r+3)%4` (`src/kanon/roles.py:91-95`). Strzałka PLAN.md:158 daje inną ścieżkę osobistą niż ten wzór. Kod trzyma wzór.
-- **zgodne.** Do kanonu wchodzi definicja niezbita, zgodna na 16 parach audytowych i wywołana w `use`, które samo te pary przechodzi (`src/kanon/round.py:221-229`). `use` bez `(call slot …)` jest `[ABS]` i nie zamyka sesji (`src/kanon/roles.py:226-232`).
+- **zgodne.** Do kanonu wchodzi definicja niezbita, zgodna na 16 parach audytowych i wywołana w `use`, które samo te pary przechodzi (`src/kanon/round.py:205-213`). `use` bez `(call slot …)` jest `[ABS]` i nie zamyka sesji (`src/kanon/roles.py:226-232`).
 - **zgodne.** Wpis znika, gdy `runda >= last_used_round + 12` (`src/kanon/canon.py:22`, `104`).
 - **zgodne.** Ława w rundach podzielnych przez 4, od rundy 4, tylko najstarszy wpis (`src/kanon/canon.py:23`, `110-118`). `end_round` najpierw wygasza (`121-122`).
 - **zgodne.** ε startuje w 1, ×0,995, podłoga 0,05 (`src/kanon/run.py:51-52`, `117-120`, `217`, `290`). Przy ε = 1 `speak` oddaje sampler (`src/kanon/sample.py:484-485`). Poniżej 1 każdy krok produkcji bierze sampler z prawdopodobieństwem ε, inaczej wagę z logitów na tokenach odróżniających tę produkcję (`src/kanon/sample.py:279-298`, `300-312`, `492`). Pomiar podaje to samo ε (`src/kanon/run.py:274-280`, `333-360`).
@@ -158,4 +164,4 @@ Cztery plastyczne sieci w zamkniętym języku termów mają zbudować kanon proc
 - **zgodne.** Odsetek zbić audytu jest w `metrics.csv` na oknie 50 (`src/kanon/run.py:57`, `242-243`, `363-365`). Progu 30% kod nie zamienia na drugiego łamacza.
 - **zgodne.** Szkic autora jest `(draft (def …))` (`src/kanon/roles.py:68`, `src/kanon/sample.py:157-158`). Tak ma gramatyka PLAN.md:94, tabela :153 i budżet :193. Zdanie PLAN.md:173 pisze w tym miejscu `(draft expr)`.
 - **zgodne.** PLAN.md:121-127 zamyka listę tokenów i nie ma w niej `propose`, `use`, `solve`, `break`, `abstain`. `TOKENS` tej listy nie rozszerza (`src/kanon/language.py:21-50`). Te słowa są w `MESSAGE_HEADS` (`language.py:19`) i w słowniku sieci (`src/kanon/model.py:28`), bo gramatyka roli ich wymaga.
-- **rozjazd.** PLAN.md:177-181: najpierw warunek kanonu, potem obcy, który widzi już kanon zatwierdzony. `play` liczy `solve` obcego przed `admit` (`src/kanon/round.py:210-219`, potem `221-227`). Obserwacja obcego powstaje z kanonu sprzed tego przyjęcia (`140-144`, `406`). Definicja przyjęta w tej rundzie nie wchodzi ani w zadanie obcego (`133`), ani w jego `solve`.
+- **zgodne.** Najpierw warunek kanonu, potem obcy. `admit` jest w `src/kanon/round.py:205-213`. Zadanie i obserwacja obcego biorą kanon po tym przyjęciu (`214-223`). `solve` liczy się na tym kanonie (`224-230`, `408-410`). Wygasanie idzie później (`234-235`).

@@ -3,7 +3,7 @@ import json
 import pytest
 
 from kanon.canon import Canon
-from kanon.roles import format_expr
+from kanon.roles import format_def, format_expr
 from kanon.round import EPSILON, Script, dumps_event, play, task_seed
 from kanon.tasks import IOPair, TaskAudit, generate_task
 
@@ -93,6 +93,43 @@ def test_abstain_audit_and_user_call_admit_the_candidate():
     assert [entry.slot for entry in canon.replay()] == ["f0"]
     assert format_expr(canon.replay()[0].definition.body) == body
     assert canon.graves == ()
+
+
+def test_outsider_sees_the_definition_admitted_in_this_round(monkeypatch):
+    calls: list[tuple[int, tuple[str, ...]]] = []
+    real = generate_task
+
+    def wrapped(seed, depth, canon=()):
+        calls.append((seed, tuple(item.slot for item in canon)))
+        return real(seed, depth, canon=canon)
+
+    monkeypatch.setattr("kanon.round.generate_task", wrapped)
+    canon = Canon()
+    body = "(succ (succ (zero)))"
+    event = play(
+        canon,
+        round_no=3,
+        depth=1,
+        seed=PASS_SEED,
+        script=Script(
+            author=(_draft(body), _propose(body)),
+            breaker=("(abstain f0)",),
+            user=("(draft (call f0 (zero)))", "(use f0 (call f0 (zero)))"),
+            outsider=("(draft (call f0 (zero)))", "(solve (call f0 (zero)))"),
+        ),
+    )
+    assert event.admitted == "f0"
+    admitted = format_def(canon.replay()[0].definition)
+    observation = event.observations["outsider"]
+    assert admitted in observation
+    assert observation.index(admitted) < observation.index("[PAIRS]")
+    outsider_seed = task_seed(PASS_SEED, 2)
+    assert (outsider_seed, ("f0",)) in calls
+    assert (task_seed(PASS_SEED, 0), ()) in calls
+    draft = next(step for step in event.steps if step[0] == "outsider" and step[1].startswith("(draft"))
+    assert draft[2] == "[TRY] (num 2) (num 2) (num 2) (num 2) (num 2)"
+    tail = observation.split("[PAIRS]", 1)[1]
+    assert event.to_json()["targets"]["outsider"] not in tail
 
 
 def test_user_without_a_call_blocks_admission():

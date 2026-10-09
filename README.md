@@ -4,16 +4,37 @@ Cztery sieci startują z losowych wag i po każdej rundzie dostają jeden krok A
 
 Pusty kanon po smoke nie jest błędem maszynerii. Smoke sprawdza, że proces kończy pracę i pisze log.
 
-## Smoke
+## Jedna runda
 
 Z katalogu repozytorium:
 
 ```bash
 source .venv/bin/activate
-PYTHONPATH=src python -m kanon.run --rounds 20 --seed 0
+PYTHONPATH=src python -m kanon.run --seed 0
 ```
 
-Proces kończy się kodem 0. Zapis ląduje w `runs/0/`.
+To dopisuje jedną rundę do `runs/0/` i kończy pracę. Następne takie samo polecenie idzie dalej: runda 1, 2, 3, … Stan wag, kanonu i taśmy jest w `runs/0/resume.pt`. Log, który da się czytać, jest obok.
+
+Na noc, aż do Ctrl-C:
+
+```bash
+source .venv/bin/activate
+while true; do PYTHONPATH=src python -m kanon.run --seed 0 || exit; done
+```
+
+Przerwanie w trakcie rundy gubi tylko tę rundę. Ostatnia dokończona zostaje. Rano widać ją w `runs/0/events.jsonl` i, co 10 rund, w `metrics.csv`.
+
+Usunięcie zapisu i start od rundy 0:
+
+```bash
+PYTHONPATH=src python -m kanon.run --fresh --seed 0
+```
+
+`--rounds 20` dopisuje dwadzieścia rund za jednym razem. Smoke, od zera:
+
+```bash
+PYTHONPATH=src python -m kanon.run --fresh --rounds 20 --seed 0
+```
 
 ## runs/
 

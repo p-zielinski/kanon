@@ -208,6 +208,47 @@ def test_nonempty_tape_with_unchanged_weights_fails(monkeypatch, tmp_path):
         run(seed=0, rounds=1, root=tmp_path)
 
 
+def test_a_later_invocation_continues_the_saved_round(tmp_path):
+    from kanon.run import run
+
+    straight = tmp_path / "straight"
+    split = tmp_path / "split"
+    run(seed=1, rounds=2, root=straight)
+    run(seed=1, rounds=1, root=split)
+    run(seed=1, rounds=1, root=split)
+    left = (straight / "1" / "events.jsonl").read_text(encoding="utf-8")
+    right = (split / "1" / "events.jsonl").read_text(encoding="utf-8")
+    assert left == right
+    rounds = [json.loads(line)["round"] for line in right.splitlines()]
+    assert rounds == [0, 1]
+
+
+def test_fresh_removes_the_saved_run(tmp_path):
+    from kanon.run import run
+
+    run(seed=1, rounds=2, root=tmp_path)
+    run(seed=1, rounds=1, root=tmp_path, fresh=True)
+    lines = (tmp_path / "1" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line)["round"] for line in lines] == [0]
+
+
+def test_cli_adds_one_round_unless_fresh_is_asked(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_run(**kwargs):
+        seen.update(kwargs)
+        return tmp_path
+
+    monkeypatch.setattr("kanon.run.run", fake_run)
+    from kanon.run import main
+
+    assert main(["--seed", "3", "--root", str(tmp_path)]) == 0
+    assert seen["rounds"] == 1
+    assert seen["fresh"] is False
+    assert main(["--seed", "3", "--root", str(tmp_path), "--fresh"]) == 0
+    assert seen["fresh"] is True
+
+
 def test_smoke_exits_zero_and_logs_have_no_hidden_term(tmp_path):
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT / "src")

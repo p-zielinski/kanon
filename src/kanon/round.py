@@ -130,18 +130,12 @@ def play(
     defs = tuple(entry.definition for entry in canon.replay())
     author_task = generate_task(task_seed(seed, 0), depth, canon=defs)
     user_task = generate_task(task_seed(seed, 1), depth, canon=defs)
-    outsider_task = generate_task(task_seed(seed, 2), depth, canon=defs)
     free = canon.free_slots()
     free_slot = free[0] if free else None
     graves_before = len(canon.graves)
     steps: list[tuple[str, str, str]] = []
     observations = {
         "author": _author_view(canon, author_task, free_slot),
-        "outsider": observe(
-            Role.OUTSIDER,
-            canon=canon,
-            pairs=outsider_task.view.public_pairs,
-        ),
     }
     proposed = _author_phase(
         canon,
@@ -207,16 +201,6 @@ def play(
             {**_defs(canon), proposed.slot: proposed},
         )
     )
-    outsider_ok = _outsider_phase(
-        canon,
-        outsider_task,
-        _queue(script, "outsider"),
-        seed,
-        steps,
-        legal,
-        logits,
-        choose,
-    )
     admitted = None
     if proposed is not None and not broken and audit_ok and user_ok and free_slot is not None:
         admitted = canon.admit(
@@ -227,6 +211,26 @@ def play(
         )
         if admitted is not None and use_expr is not None:
             canon.note_use(use_expr, round_no)
+    outsider_task = generate_task(
+        task_seed(seed, 2),
+        depth,
+        canon=tuple(entry.definition for entry in canon.replay()),
+    )
+    observations["outsider"] = observe(
+        Role.OUTSIDER,
+        canon=canon,
+        pairs=outsider_task.view.public_pairs,
+    )
+    outsider_ok = _outsider_phase(
+        canon,
+        outsider_task,
+        _queue(script, "outsider"),
+        seed,
+        steps,
+        legal,
+        logits,
+        choose,
+    )
     if close:
         canon.end_round(round_no)
     return RoundEvent(

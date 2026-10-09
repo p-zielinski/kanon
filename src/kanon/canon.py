@@ -125,6 +125,18 @@ class Canon:
     def replay(self) -> tuple[Entry, ...]:
         return tuple(self._entries[slot] for slot in self._order)
 
+    def restore(self, entries: Sequence[Entry], graves: Sequence[Grave]) -> None:
+        """Wstawia zapisany kanon. Kolejność wpisów jest kolejnością powtórki."""
+        self._entries = {}
+        self._order = []
+        self._graves = []
+        for entry in entries:
+            if entry.slot in self._entries:
+                raise ValueError("slot")
+            self._entries[entry.slot] = entry
+            self._order.append(entry.slot)
+        self._graves.extend(graves)
+
     def free_slots(self) -> tuple[str, ...]:
         return tuple(slot for slot in SLOTS if slot not in self._entries)
 

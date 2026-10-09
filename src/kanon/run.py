@@ -7,9 +7,11 @@ ewaluacje. Sufit to 4.
 
 Ewaluacja nie woła kroku i nie dopisuje zadań do taśmy. Szkice 1..4 liczą
 się na pięciu parach publicznych. Zaliczenie wymaga 16 par audytowych.
-Przy ε = 1 komunikat bierze sampler. Poniżej 1 każdy token miesza sampler
-z siecią na masce legalnych tokenów. Krok grupy i cztery kroki solo idą
-po pomiarze.
+Przy ε = 1 komunikat bierze sampler. Poniżej 1 każdy krok produkcji miesza
+sampler z siecią. Krok grupy i cztery kroki solo idą po pomiarze.
+
+Jedno wywołanie dopisuje rundy do zapisu tego ziarna. Bez `--fresh` kolejny
+start idzie dalej od ostatniej dokończonej rundy.
 """
 
 from __future__ import annotations
@@ -18,13 +20,16 @@ import argparse
 import csv
 import hashlib
 import json
+import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+import torch
+
 from kanon.baselines import LEARNING_STEPS, solo_round, start_frozen
-from kanon.canon import Canon
-from kanon.language import Expr, Solve
+from kanon.canon import Canon, Entry, Grave
+from kanon.language import Expr, Solve, parse_def
 from kanon.model import Decoder, build_agent, build_agents
 from kanon.reduce import ReduceError, reduce_expr
 from kanon.roles import (
@@ -39,7 +44,7 @@ from kanon.roles import (
 )
 from kanon.round import EPSILON, dumps_event, play
 from kanon.sample import speak
-from kanon.tasks import AUDIT_COUNT, Holdout, TaskAudit, build_holdout, generate_task
+from kanon.tasks import AUDIT_COUNT, Holdout, IOPair, TaskAudit, build_holdout, generate_task
 from kanon.update import Tape, step, step_all
 
 EVAL_EVERY = 10
@@ -192,16 +197,29 @@ def score_tasks(
     return hits / len(tasks)
 
 
-def run(*, seed: int = SMOKE_SEED, rounds: int = SMOKE_ROUNDS, root: Path | str = "runs") -> Path:
-    """20 rund smoke przy seed 0 pisze events.jsonl, metrics.csv i kanon."""
+def run(
+    *,
+    seed: int = SMOKE_SEED,
+    rounds: int = 1,
+    root: Path | str = "runs",
+    fresh: bool = False,
+) -> Path:
+    """Dopisuje `rounds` rund do zapisu ziarna. Bez `fresh` kontynuuje poprzedni zapis."""
     _seed(seed)
     if type(rounds) is not int or rounds < 1:
         raise ValueError("rounds")
     directory = Path(root) / str(seed)
     canon_dir = directory / "canon"
     canon_dir.mkdir(parents=True, exist_ok=True)
+    resume_path = directory / "resume.pt"
+    events_path = directory / "events.jsonl"
+    metrics_path = directory / "metrics.csv"
+    if fresh:
+        _wipe(directory, canon_dir, resume_path, events_path, metrics_path)
+    saved = None if not resume_path.is_file() else torch.load(resume_path, weights_only=False)
     holdout = build_holdout(holdout_seed(seed))
-    _write_holdout(directory / "holdout.json", holdout)
+    if not (directory / "holdout.json").is_file():
+        _write_holdout(directory / "holdout.json", holdout)
     developmental = _dev_tasks(dev_seed(seed))
     by_depth = {depth: holdout.by_depth(depth) for depth in (1, 2, 3, 4)}
     agents = build_agents()
@@ -211,84 +229,129 @@ def run(*, seed: int = SMOKE_SEED, rounds: int = SMOKE_ROUNDS, root: Path | str 
     frozen = start_frozen(FROZEN_SEED)
     group = Canon()
     tape = Tape()
-    initial = tuple(_weight_hash(agent) for agent in agents)
-    depth = DEPTH_START
-    streak = 0
-    epsilon = EPSILON
-    proposed = 0
-    broken_n = 0
-    audit_flags: list[bool] = []
-    events_path = directory / "events.jsonl"
-    metrics_path = directory / "metrics.csv"
-    _write_header(metrics_path)
-    with events_path.open("w", encoding="utf-8") as events:
-        for round_no in range(rounds):
-            owners = _agent_roles(round_no)
-            event = play(
-                group,
-                round_no=round_no,
-                depth=depth,
-                seed=seed,
+    if saved is None:
+        completed = 0
+        depth = DEPTH_START
+        streak = 0
+        epsilon = EPSILON
+        proposed = 0
+        broken_n = 0
+        audit_flags: list[bool] = []
+        initial = tuple(_weight_hash(agent) for agent in agents)
+        events_path.write_text("", encoding="utf-8")
+        _write_header(metrics_path)
+    else:
+        completed = int(saved["completed"])
+        depth = int(saved["depth"])
+        streak = int(saved["streak"])
+        epsilon = float(saved["epsilon"])
+        proposed = int(saved["proposed"])
+        broken_n = int(saved["broken_n"])
+        audit_flags = [bool(item) for item in saved["audit_flags"]]
+        initial = tuple(saved["initial"])
+        _install_weights(agents, saved["group_weights"])
+        _install_weights((solo_agent,), (saved["solo_weights"],))
+        _install_canon(group, saved["group_canon"])
+        _install_canon(solo_canon, saved["solo_canon"])
+        tape.import_traces(saved["group_traces"])
+        solo_tape.import_traces(saved["solo_traces"])
+        tape.note_canon(group)
+        tape.note_breaks(group)
+        solo_tape.note_canon(solo_canon)
+        for agent, state in zip(agents, saved["group_optim"], strict=True):
+            tape.import_optimizer(agent, state)
+        solo_tape.import_optimizer(solo_agent, saved["solo_optim"])
+        _align_events(events_path, completed, saved["last_line"])
+        if not metrics_path.is_file():
+            _write_header(metrics_path)
+    for _ in range(rounds):
+        round_no = completed
+        owners = _agent_roles(round_no)
+        event = play(
+            group,
+            round_no=round_no,
+            depth=depth,
+            seed=seed,
+            epsilon=epsilon,
+            choose=_policy(agents, owners, epsilon),
+            close=False,
+        )
+        line = dumps_event(event) + "\n"
+        if event.broken or event.audit_ran:
+            proposed += 1
+        if event.broken:
+            broken_n += 1
+        if event.audit_ran:
+            audit_flags.append(not event.audit_ok)
+        _note(tape, group, event)
+        solo_round(
+            solo_agent,
+            solo_canon,
+            solo_tape,
+            round_no=round_no,
+            depth=depth,
+            seed=seed,
+            learn=False,
+            choose=_solo_policy(solo_agent, epsilon),
+            close=False,
+        )
+        if (round_no + 1) % EVAL_EVERY == 0:
+            outsider = agents[owners.index(Role.OUTSIDER)]
+            _write_metrics(
+                metrics_path,
+                completed=round_no + 1,
                 epsilon=epsilon,
-                choose=_policy(agents, owners, epsilon),
-                close=False,
-            )
-            events.write(dumps_event(event) + "\n")
-            events.flush()
-            if event.broken or event.audit_ran:
-                proposed += 1
-            if event.broken:
-                broken_n += 1
-            if event.audit_ran:
-                audit_flags.append(not event.audit_ok)
-            _note(tape, group, event)
-            solo_round(
-                solo_agent,
-                solo_canon,
-                solo_tape,
-                round_no=round_no,
                 depth=depth,
+                group=group,
+                proposed=proposed,
+                broken_n=broken_n,
+                audit_flags=audit_flags,
+                by_depth=by_depth,
+                solo_canon=solo_canon,
                 seed=seed,
-                learn=False,
-                choose=_solo_policy(solo_agent, epsilon),
-                close=False,
+                group_agent=outsider,
+                solo_agent=solo_agent,
+                frozen_agent=frozen.agent,
             )
-            if (round_no + 1) % EVAL_EVERY == 0:
-                outsider = agents[owners.index(Role.OUTSIDER)]
-                _write_metrics(
-                    metrics_path,
-                    completed=round_no + 1,
-                    epsilon=epsilon,
-                    depth=depth,
-                    group=group,
-                    proposed=proposed,
-                    broken_n=broken_n,
-                    audit_flags=audit_flags,
-                    by_depth=by_depth,
-                    solo_canon=solo_canon,
-                    seed=seed,
-                    group_agent=outsider,
-                    solo_agent=solo_agent,
-                    frozen_agent=frozen.agent,
-                )
-                rate = score_tasks(
-                    group,
-                    developmental[depth],
-                    seed=seed + 80_000 + round_no,
-                    agent=outsider,
-                    epsilon=epsilon,
-                )
-                depth, streak = advance_depth(depth, streak, rate)
-                _snapshot(group, canon_dir / "snapshot.json", round_no + 1)
-            step_all(agents, tape, owners)
-            for _ in range(LEARNING_STEPS):
-                step((solo_agent,), solo_tape, agent=0, role=Role.AUTHOR)
-            group.end_round(round_no)
-            solo_canon.end_round(round_no)
-            tape.note_canon(group)
-            solo_tape.note_canon(solo_canon)
-            epsilon = decay_epsilon(epsilon)
-    _snapshot(group, canon_dir / "snapshot.json", rounds)
+            rate = score_tasks(
+                group,
+                developmental[depth],
+                seed=seed + 80_000 + round_no,
+                agent=outsider,
+                epsilon=epsilon,
+            )
+            depth, streak = advance_depth(depth, streak, rate)
+            _snapshot(group, canon_dir / "snapshot.json", round_no + 1)
+        step_all(agents, tape, owners)
+        for _ in range(LEARNING_STEPS):
+            step((solo_agent,), solo_tape, agent=0, role=Role.AUTHOR)
+        group.end_round(round_no)
+        solo_canon.end_round(round_no)
+        tape.note_canon(group)
+        solo_tape.note_canon(solo_canon)
+        epsilon = decay_epsilon(epsilon)
+        completed += 1
+        _commit(
+            resume_path,
+            events_path,
+            line,
+            completed=completed,
+            epsilon=epsilon,
+            depth=depth,
+            streak=streak,
+            proposed=proposed,
+            broken_n=broken_n,
+            audit_flags=audit_flags,
+            initial=initial,
+            group=group,
+            solo_canon=solo_canon,
+            tape=tape,
+            solo_tape=solo_tape,
+            agents=agents,
+            solo_agent=solo_agent,
+        )
+        print(f"runda {round_no} zapisana, {directory}", file=sys.stderr)
+    _snapshot(group, canon_dir / "snapshot.json", completed)
     if _weight_hash(frozen.agent) != _weight_hash(build_agent(frozen.seed)):
         raise RuntimeError("frozen weights")
     changed = tuple(_weight_hash(agent) for agent in agents) != initial
@@ -305,11 +368,166 @@ def run(*, seed: int = SMOKE_SEED, rounds: int = SMOKE_ROUNDS, root: Path | str 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="kanon.run")
     parser.add_argument("--seed", type=int, default=SMOKE_SEED)
-    parser.add_argument("--rounds", type=int, default=SMOKE_ROUNDS)
+    parser.add_argument("--rounds", type=int, default=1, help="ile rund dopisać do zapisu")
     parser.add_argument("--root", type=Path, default=Path("runs"))
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="usuwa zapis tego ziarna i zaczyna od rundy 0",
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
-    run(seed=args.seed, rounds=args.rounds, root=args.root)
+    run(seed=args.seed, rounds=args.rounds, root=args.root, fresh=args.fresh)
     return 0
+
+
+def _wipe(directory: Path, canon_dir: Path, resume_path: Path, events_path: Path, metrics_path: Path) -> None:
+    for path in (resume_path, events_path, metrics_path, directory / "weight_check.json", directory / "holdout.json"):
+        if path.is_file():
+            path.unlink()
+    snapshot = canon_dir / "snapshot.json"
+    if snapshot.is_file():
+        snapshot.unlink()
+
+
+def _commit(
+    resume_path: Path,
+    events_path: Path,
+    line: str,
+    *,
+    completed: int,
+    epsilon: float,
+    depth: int,
+    streak: int,
+    proposed: int,
+    broken_n: int,
+    audit_flags: list[bool],
+    initial: tuple[str, ...],
+    group: Canon,
+    solo_canon: Canon,
+    tape: Tape,
+    solo_tape: Tape,
+    agents: Sequence,
+    solo_agent,
+) -> None:
+    payload = {
+        "completed": completed,
+        "epsilon": epsilon,
+        "depth": depth,
+        "streak": streak,
+        "proposed": proposed,
+        "broken_n": broken_n,
+        "audit_flags": list(audit_flags),
+        "initial": list(initial),
+        "last_line": line,
+        "group_canon": _canon_payload(group),
+        "solo_canon": _canon_payload(solo_canon),
+        "group_traces": list(tape.export_traces()),
+        "solo_traces": list(solo_tape.export_traces()),
+        "group_weights": [_state(agent) for agent in agents],
+        "solo_weights": _state(solo_agent),
+        "group_optim": [tape.export_optimizer(agent) for agent in agents],
+        "solo_optim": solo_tape.export_optimizer(solo_agent),
+    }
+    temporary = resume_path.with_suffix(".pt.tmp")
+    torch.save(payload, temporary)
+    temporary.replace(resume_path)
+    with events_path.open("a", encoding="utf-8") as handle:
+        handle.write(line)
+        handle.flush()
+
+
+def _align_events(path: Path, completed: int, last_line: str) -> None:
+    text = path.read_text(encoding="utf-8") if path.is_file() else ""
+    lines = [line for line in text.splitlines() if line]
+    if len(lines) > completed:
+        body = "".join(f"{line}\n" for line in lines[:completed])
+        path.write_text(body, encoding="utf-8")
+        return
+    if len(lines) == completed:
+        return
+    if len(lines) == completed - 1:
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(last_line if last_line.endswith("\n") else last_line + "\n")
+        return
+    raise ValueError("log")
+
+
+def _canon_payload(canon: Canon) -> dict:
+    return {
+        "entries": [
+            {
+                "def": format_def(entry.definition),
+                "public": _pairs_payload(entry.public_pairs),
+                "audit": _pairs_payload(entry.audit_pairs),
+                "last_used_round": entry.last_used_round,
+                "born_round": entry.born_round,
+            }
+            for entry in canon.replay()
+        ],
+        "graves": [
+            {
+                "slot": grave.slot,
+                "def": format_def(grave.definition),
+                "inputs": list(grave.inputs),
+                "def_result": grave.def_result,
+                "target_result": grave.target_result,
+                "round": grave.round_no,
+            }
+            for grave in canon.graves
+        ],
+    }
+
+
+def _install_canon(canon: Canon, payload: dict) -> None:
+    entries = []
+    for item in payload["entries"]:
+        definition = parse_def(item["def"])
+        entries.append(
+            Entry(
+                slot=definition.slot,
+                definition=definition,
+                public_pairs=_pairs_from(item["public"]),
+                audit_pairs=_pairs_from(item["audit"]),
+                last_used_round=int(item["last_used_round"]),
+                born_round=int(item["born_round"]),
+            )
+        )
+    graves = []
+    for item in payload["graves"]:
+        graves.append(
+            Grave(
+                slot=item["slot"],
+                definition=parse_def(item["def"]),
+                inputs=tuple(int(value) for value in item["inputs"]),
+                def_result=int(item["def_result"]),
+                target_result=int(item["target_result"]),
+                round_no=int(item["round"]),
+            )
+        )
+    canon.restore(entries, graves)
+
+
+def _pairs_payload(pairs: Sequence[IOPair]) -> list[dict]:
+    return [{"inputs": list(pair.inputs), "output": pair.output} for pair in pairs]
+
+
+def _pairs_from(rows: Sequence[dict]) -> tuple[IOPair, ...]:
+    return tuple(IOPair(tuple(int(value) for value in row["inputs"]), int(row["output"])) for row in rows)
+
+
+def _state(module) -> dict:
+    reader = getattr(module, "state_dict", None)
+    if reader is None:
+        return {}
+    return reader()
+
+
+def _install_weights(modules: Sequence, states: Sequence[dict]) -> None:
+    for module, state in zip(modules, states, strict=True):
+        writer = getattr(module, "load_state_dict", None)
+        if writer is None:
+            continue
+        writer(state)
 
 
 def _write_metrics(
