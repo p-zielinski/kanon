@@ -15,9 +15,9 @@ Katalog to `runs/v2-seed0/`. Najpierw przegląd termów do 16 tokenów. Gdy czte
 
 Jedna paczka liczy 2000 termów albo 2 minuty, co pierwsze. Po każdej pełnej paczce są `resume.pt` i `canon/snapshot.json`. Co 10 paczek dochodzi wiersz w `metrics.csv`. Na standardowe wyjście nic nie leci. Postęp jest w snapshocie: piętro, kształt i numer termu. Start to piętro 2, kształt R1, numer 0. Dodawanie zostawia piętro 2 i otwiera R2. R2 zostaje pracą na wiele godzin. Po piętrze 12 proces wchodzi w warsztat i sam nie kończy pracy. Zatrzymanie to Ctrl-C.
 
-Przerwanie w trakcie paczki zostawia ostatnią dokończoną. Drugie takie samo polecenie nie wczytuje `resume.pt`: przegląd i schemat zaczynają się od nowa, a pierwsza pełna paczka nadpisuje zapis.
+Przerwanie w trakcie paczki zostawia ostatnią dokończoną. Drugie takie samo polecenie wczytuje `resume.pt` i półkę z `canon/snapshot.json`, więc trójka piętro-kształt-numer zostaje. Bez tych dwóch plików start jest przeglądem i piętrem 2.
 
-Komunikat ćwiczenia w tym poleceniu to `(abstain f0)`. Sieć nie jest losowana i krok uczenia nie idzie, więc wagi w zapisie zostają wagami startowymi. Wysyłka co 6 godzin nic nie publikuje. Gdy w środowisku nie ma `KANON_V2_TOKEN`, do `events.jsonl` dochodzi `wysyłka nie wyszła: brak tokenu`, a proces idzie dalej.
+Przy schemacie sieć nie wybiera termu. Ćwiczenie, jedno na paczkę po zamknięciu piętra, mówi wyrażeniem: przy ε = 1 robi to sampler, poniżej 1 sieć od prefiksu 176. Trafienie wchodzi na taśmę i rusza krok AdamW. Pusta taśma wag nie rusza. Wysyłka co 6 godzin nic nie publikuje. Gdy w środowisku nie ma `KANON_V2_TOKEN`, do `events.jsonl` dochodzi `wysyłka nie wyszła: brak tokenu`, a proces idzie dalej.
 
 `runs/0/` to świadectwo v1. To polecenie go nie rusza.
 

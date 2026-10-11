@@ -1,10 +1,11 @@
 from kanon.language import Call, Expr, If0, Num, Pred, Self, Succ, Var, Zero, parse_def
 from kanon.reduce import NODE_LIMIT, ReduceError, reduce_expr
 from kanon.roles import format_expr
+from kanon.v2.play import Clocks, Tape, play_exercise
 from kanon.v2.seed import round_seed
 from kanon.v2.shelf import Shelf
-from kanon.v2.tactics import Fact
-from kanon.v2.workshop import Pending, Workshop, draw_task, serialize, vet
+from kanon.v2.tactics import DomEval, Fact
+from kanon.v2.workshop import Task, Workshop, draw_task, serialize, vet
 
 _SUCC = "(def f0 1 (succ (var 0)))"
 _ADD = "(def f0 2 (if0 (var 0) (var 1) (succ (self (pred (var 0)) (var 1)))))"
@@ -124,9 +125,54 @@ def test_levels_four_through_six_wait_for_the_tactic_pool():
     assert draw_task(shelf, level=3, round_no=0, seed=0) is not None
     shelf.hang(Fact(Var(0), Var(0), "E", ()))
     assert shop.ceiling(shelf) == 6
-    opened = draw_task(shelf, level=4, round_no=0, seed=0)
-    assert isinstance(opened, Pending)
-    assert opened.level == 4
+    assert draw_task(shelf, level=4, round_no=0, seed=0) is None
+    shelf.hang(Fact(Zero(), Call("e1", (Zero(), Zero())), "E", (DomEval(0, 1),)))
+    for level in (4, 5, 6):
+        opened = draw_task(shelf, level=level, round_no=0, seed=0)
+        assert isinstance(opened, Task)
+        assert opened.level == level
+        assert opened.fact is not None
+        text = serialize(opened.observation)
+        assert "eq" in text
+        assert "eval" not in text
+        assert "rewrite" not in text
+        assert "dom" not in text
+
+
+def test_level_four_domain_hits_and_a_bare_eval_misses():
+    shelf = _shelf()
+    shelf.hang(Fact(Zero(), Call("e1", (Zero(), Zero())), "E", (DomEval(0, 1),)))
+    task = draw_task(shelf, level=4, round_no=0, seed=0)
+    assert isinstance(task, Task)
+    hit = play_exercise(
+        shelf,
+        task,
+        round_no=0,
+        message="( dom 0 1 ) ( eval )",
+        tape=Tape(),
+        clocks=Clocks(),
+    )
+    miss = play_exercise(
+        shelf,
+        task,
+        round_no=0,
+        message="( eval )",
+        tape=Tape(),
+        clocks=Clocks(),
+    )
+    chain = draw_task(shelf, level=6, round_no=1, seed=0)
+    assert isinstance(chain, Task)
+    longer = play_exercise(
+        shelf,
+        chain,
+        round_no=1,
+        message="( eval ) ( eval )",
+        tape=Tape(),
+        clocks=Clocks(),
+    )
+    assert hit.hit is True
+    assert miss.hit is False
+    assert longer.hit is True
 
 
 def _shelf() -> Shelf:

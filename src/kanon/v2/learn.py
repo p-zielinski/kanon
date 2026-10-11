@@ -22,7 +22,6 @@ LR = 3e-4
 BATCH = 4
 GRAD_CLIP = 1.0
 
-_OPTIMS: dict[int, torch.optim.AdamW] = {}
 _PAD = TOKEN_ID["[PAD]"]
 
 
@@ -76,8 +75,10 @@ def _batch(rows: Sequence[Sequence[int]]) -> tuple[torch.Tensor, tuple[int, ...]
 
 
 def _optimizer(net: Decoder) -> torch.optim.AdamW:
-    found = _OPTIMS.get(id(net))
-    if found is None:
-        found = torch.optim.AdamW(net.parameters(), lr=LR)
-        _OPTIMS[id(net)] = found
+    """Optimizer siedzi na sieci. Procesowy słownik nie przeżywa restartu."""
+    found = getattr(net, "optimizer", None)
+    if isinstance(found, torch.optim.AdamW):
+        return found
+    found = torch.optim.AdamW(net.parameters(), lr=LR)
+    net.optimizer = found
     return found

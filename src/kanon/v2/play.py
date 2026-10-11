@@ -18,11 +18,13 @@ from kanon.language import (
     Def,
     Expr,
     If0,
+    Num,
     ParseError,
     Pred,
     Succ,
     Var,
     Zero,
+    expand_num,
     parse_expr,
     parse_message,
 )
@@ -32,6 +34,7 @@ from kanon.v2.batch import run_package
 from kanon.v2.kernel import Kernel
 from kanon.v2.schema import Schema
 from kanon.v2.shelf import Shelf
+from kanon.v2.tactics import Base, DomEval, Eval, Fact, Induct, Rewrite, chain_ok
 from kanon.v2.window import TOKEN_ID, place_message
 from kanon.v2.workshop import Task
 
@@ -75,6 +78,19 @@ class Tape:
     def traces(self, agent: int, level: int) -> tuple[tuple[int, ...], ...]:
         return tuple(self._rows.get((agent, level), ()))
 
+    def count(self) -> int:
+        """Ile śladów leży na taśmie, po wszystkich agentach i poziomach."""
+        return sum(len(rows) for rows in self._rows.values())
+
+    def export(self) -> dict[tuple[int, int], tuple[tuple[int, ...], ...]]:
+        return {key: tuple(rows) for key, rows in self._rows.items()}
+
+    def ingest(self, raw: dict) -> None:
+        self._rows = {}
+        for key, rows in (raw or {}).items():
+            agent, level = int(key[0]), int(key[1])
+            self._rows[(agent, level)] = [tuple(item) for item in rows]
+
 
 class Clocks:
     """ε osobno dla autora i wykonawcy, osobno na każdym poziomie."""
@@ -103,6 +119,20 @@ class Clocks:
     def tick_breaker(self, level: int) -> None:
         """×0,995 do 0,5. Wołane tylko na powtórce faktu lokalnego."""
         self._breaker[level] = _decay(self.breaker(level), BREAKER_FLOOR)
+
+    def export(self) -> dict[str, dict[int, float]]:
+        return {
+            "author": dict(self._author),
+            "executor": dict(self._executor),
+            "breaker": dict(self._breaker),
+        }
+
+    def ingest(self, raw: dict | None) -> None:
+        if not raw:
+            return
+        self._author = {int(key): float(value) for key, value in raw.get("author", {}).items()}
+        self._executor = {int(key): float(value) for key, value in raw.get("executor", {}).items()}
+        self._breaker = {int(key): float(value) for key, value in raw.get("breaker", {}).items()}
 
 
 def speaker(round_no: int) -> tuple[int, str]:
@@ -201,6 +231,8 @@ def _trace(task: Task, message: str) -> tuple[int, ...]:
 
 
 def _accept(shelf: Shelf, task: Task, message: str) -> bool:
+    if task.level >= 4 and task.fact is not None:
+        return _proof(shelf, task, message)
     try:
         parsed = parse_message(message, arity=2)
     except ParseError:
@@ -208,11 +240,11 @@ def _accept(shelf: Shelf, task: Task, message: str) -> bool:
     if isinstance(parsed, (Break, Abstain)) or parsed is not None:
         return False
     try:
-        expr = parse_expr(message, arity=2)
+        expr = parse_expr(message, arity=2, allow_num=True)
     except ParseError:
         expr = None
     if expr is not None:
-        return _matches(shelf, task, _rename(expr, task.cards))
+        return _matches(shelf, task, _rename(_expand_nums(expr), task.cards))
     return _tactic(shelf, task, message)
 
 
@@ -225,6 +257,120 @@ def _matches(shelf: Shelf, task: Task, expr: Expr) -> bool:
         except (ReduceError, ValueError):
             return False
     return tuple(found) == task.verdicts
+
+
+def _proof(shelf: Shelf, task: Task, message: str) -> bool:
+    """Kernel ocenia taktykę mówcy. Teza jest już w zadaniu."""
+    fact = task.fact
+    if not isinstance(fact, Fact):
+        return False
+    try:
+        tactics = _tactics_from(message, task.cards)
+    except (ValueError, IndexError, TypeError):
+        return False
+    if task.level >= 6:
+        if not 2 <= len(tactics) <= 8:
+            return False
+        return chain_ok(shelf, Fact(fact.left, fact.right, "C", tactics))
+    if task.level == 5 and not _fuel_ok(shelf, fact):
+        return False
+    kernel = Kernel(shelf)
+    if fact.kind == "E":
+        tactic = tactics[0] if len(tactics) == 1 else None
+        return isinstance(tactic, DomEval) and kernel.eval(fact.left, fact.right, tactic.lo, tactic.hi)
+    if fact.kind == "W":
+        tactic = tactics[0] if len(tactics) == 1 else None
+        return isinstance(tactic, Rewrite) and kernel.rewrite(fact.left, fact.right, tactic.name).accepted
+    if fact.kind == "I":
+        return (
+            len(tactics) == 2
+            and isinstance(tactics[0], Base)
+            and isinstance(tactics[1], Induct)
+            and kernel.base(fact.left, fact.right)
+        )
+    return bool(tactics) and all(_tactic_holds(kernel, fact, tactic) for tactic in tactics)
+
+
+def _fuel_ok(shelf: Shelf, fact: Fact) -> bool:
+    defs = {card.id: Def(card.id, card.arity, card.body) for card in shelf.entries()}
+    try:
+        reduce_expr(fact.left, defs=defs, env=(0, 0))
+        reduce_expr(fact.right, defs=defs, env=(0, 0))
+    except (ReduceError, ValueError):
+        return False
+    return True
+
+
+def _tactic_holds(kernel: Kernel, fact: Fact, tactic: object) -> bool:
+    if isinstance(tactic, DomEval):
+        return kernel.eval(fact.left, fact.right, tactic.lo, tactic.hi)
+    if isinstance(tactic, Eval):
+        return kernel.eval(fact.left, fact.right, 0, 1)
+    if isinstance(tactic, Rewrite):
+        return kernel.rewrite(fact.left, fact.right, tactic.name).accepted
+    if isinstance(tactic, Base):
+        return kernel.base(fact.left, fact.right)
+    return False
+
+
+def _tactics_from(message: str, cards: tuple[str, str]) -> tuple[object, ...]:
+    words = _words(message)
+    index = 0
+    found: list[object] = []
+    while index < len(words):
+        tactic, index = _read_tactic(words, index, cards)
+        found.append(tactic)
+    if not found:
+        raise ValueError("empty")
+    return tuple(found)
+
+
+def _read_tactic(words: list[str], index: int, cards: tuple[str, str]) -> tuple[object, int]:
+    if words[index] != "(":
+        raise ValueError("open")
+    head = words[index + 1]
+    index += 2
+    if head == "eval":
+        return Eval(), _expect(words, index, ")")
+    if head == "base":
+        return Base(), _expect(words, index, ")")
+    if head == "rewrite":
+        name = _window_card(words[index], cards)
+        return Rewrite(name), _expect(words, index + 1, ")")
+    if head == "dom":
+        lo = int(words[index])
+        hi = int(words[index + 1])
+        index = _expect(words, index + 2, ")")
+        index = _expect(words, index, "(")
+        index = _expect(words, index, "eval")
+        index = _expect(words, index, ")")
+        if not 0 <= lo < hi <= 10:
+            raise ValueError("dom")
+        return DomEval(lo, hi), index
+    if head == "step":
+        index = _expect(words, index, "(")
+        index = _expect(words, index, "ih")
+        index = _expect(words, index, ")")
+        index = _expect(words, index, "(")
+        index = _expect(words, index, "rewrite")
+        name = _window_card(words[index], cards)
+        index = _expect(words, index + 1, ")")
+        return Induct(name), _expect(words, index, ")")
+    raise ValueError("head")
+
+
+def _expect(words: list[str], index: int, token: str) -> int:
+    if words[index] != token:
+        raise ValueError("token")
+    return index + 1
+
+
+def _window_card(token: str, cards: tuple[str, str]) -> str:
+    if token == "f0":
+        return cards[0]
+    if token == "f1":
+        return cards[1]
+    raise ValueError("name")
 
 
 def _tactic(shelf: Shelf, task: Task, message: str) -> bool:
@@ -250,6 +396,25 @@ def _tactic(shelf: Shelf, task: Task, message: str) -> bool:
     except (ValueError, TypeError, IndexError):
         return False
     return Kernel(shelf).eval(left, right, 0, 1)
+
+
+def _expand_nums(expr: Expr) -> Expr:
+    """`(num k)` w argumencie jest wieżą `succ`, którą reduktor już liczy."""
+    if isinstance(expr, Num):
+        return expand_num(expr.value)
+    if isinstance(expr, Call):
+        return Call(expr.slot, tuple(_expand_nums(arg) for arg in expr.args))
+    if isinstance(expr, Succ):
+        return Succ(_expand_nums(expr.arg))
+    if isinstance(expr, Pred):
+        return Pred(_expand_nums(expr.arg))
+    if isinstance(expr, If0):
+        return If0(
+            _expand_nums(expr.cond),
+            _expand_nums(expr.zero_branch),
+            _expand_nums(expr.nonzero_branch),
+        )
+    return expr
 
 
 def _rename(expr: Expr, cards: tuple[str, str]) -> Expr:

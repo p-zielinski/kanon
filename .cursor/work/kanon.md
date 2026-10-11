@@ -63,7 +63,7 @@ Cztery plastyczne sieci w zamkniętym języku termów mają zbudować kanon proc
 | Test kernela v2 | `tests/test_v2_kernel.py` | dziedzina 0..2, W, dodawanie `add(x, 0) = x` |
 | Taktyki v2 | `src/kanon/v2/tactics.py` | filtr E, pula, łańcuch, indukcja, piętra 9–12 |
 | Test taktyk v2 | `tests/test_v2_tactics.py` | wstawienie nie jest E, łańcuch liniowy, teza 48 |
-| Warsztat v2 | `src/kanon/v2/workshop.py` | dwie karty, poziomy 0–3, sufit rampy 3 |
+| Warsztat v2 | `src/kanon/v2/workshop.py` | dwie karty, poziomy 0–6, teza bez taktyki |
 | Test warsztatu v2 | `tests/test_v2_workshop.py` | nazwy, limit przed dziedziną, licznik, runda 12 |
 | Runda v2 | `src/kanon/v2/play.py` | jeden mówca, taśma 256, zegary ε |
 | Test rundy v2 | `tests/test_v2_play.py` | ślad, półka, pudło, podłogi 0,25 i 0,05 |
@@ -83,7 +83,9 @@ Cztery plastyczne sieci w zamkniętym języku termów mają zbudować kanon proc
 | Test odczytu v2 | `tests/test_v2_ask.py` | hash półki, dodawanie 2+3, drugie `ih` |
 | Wysyłka v2 | `src/kanon/v2/ship.py` | kopia co 6 godzin, poza plikiem sieci |
 | Test wysyłki v2 | `tests/test_v2_ship.py` | zegar, lista plików, tag dobowy, brak tokenu |
-| Polecenie v2 | `src/kanon/v2/command.py`, `src/kanon/v2/__main__.py` | jedno polecenie, przegląd, paczki, warsztat |
+| Polecenie v2 | `src/kanon/v2/command.py`, `src/kanon/v2/__main__.py` | jedno polecenie, przegląd, paczki, warsztat, krok |
+| Wypowiedź v2 | `src/kanon/v2/voice.py` | sampler przy ε = 1, sieć poniżej 1, prefiks 176 |
+| Test wypowiedzi v2 | `tests/test_v2_voice.py` | trafienie rusza wagę, wznowienie półki, brak abstainu w poleceniu |
 | Test polecenia v2 | `tests/test_v2_command.py` | sufit 1, paczka 5, limit 2, próg metryki 1 |
 | Audyt v2 | `tests/test_v2_audit.py` | budżet przed reduktorem, samo odejmowanie, kształt E, licznik ćwiczeń |
 | Opis v2 | `README.md` | jeden proces, katalog `runs/v2-seed0/` |
@@ -95,6 +97,20 @@ Cztery plastyczne sieci w zamkniętym języku termów mają zbudować kanon proc
 
 ## Decisions
 
+- 2026-10-11: czwarta godzina. Rundy 1024951 → 1042151. Suma wagi ziarna 0 ruszyła o około 3,50. Dokładność grupy około 0,81, zamrożony sampler około 0,22. Proces żyje, poziom 6.
+- 2026-10-11: odczyt około 07:50. Rundy 1094001 → 1121951. Suma wagi ziarna 0 ruszyła o około 5,12. Dokładność grupy około 0,90, zamrożony sampler około 0,16. Poziom 6, proces żyje.
+- 2026-10-11: szósta godzina, odczyt około 06:50. Rundy 1077101 → 1094001. Suma wagi ziarna 0 ruszyła o około 2,94. Dokładność grupy około 0,86, zamrożony sampler około 0,16. Poziom 6, proces żyje.
+- 2026-10-11: piąta godzina, odczyt około 05:50. Rundy 1059801 → 1077101. Suma wagi ziarna 0 ruszyła o około 2,90. Dokładność grupy około 0,76, zamrożony sampler około 0,30. Poziom 6, proces żyje.
+- 2026-10-11: czwarta godzina, odczyt przy 04:48. Rundy 1042151 → 1059701. Suma wagi ziarna 0 ruszyła o około 3,47. Poziom 6. Ziarno 4 świeże. Kod 143 to stary, zatrzymany proces.
+- 2026-10-11: trzecia godzina. Rundy 1007651 → 1024951. Suma wagi ziarna 0 ruszyła o około 2,98. Dokładność grupy około 0,82, zamrożony sampler około 0,22. Poziom 6, proces żyje.
+- 2026-10-11: druga godzina. Rundy 990151 → 1007651. Suma wagi ziarna 0 ruszyła o około 3,12. Poziom 6, taśma na suficie, więc liczba śladów stoi, a krok idzie. Dokładność grupy około 0,92, zamrożony sampler około 0,10. Ziarno 4 świeże.
+- 2026-10-11: po godzinie proces dalej liczy na poziomie 6. Rundy 972601 → 990151. Suma wagi ziarna 0 zmieniła się o około 2,16. Taśma poziomu 6 doszła do sufitu 1024. Świeża dokładność grupy około 0,82, zamrożony sampler około 0,16. Ziarno 4 świeże. Następne sprawdzenie za godzinę.
+- 2026-10-10: po poprawce proces wstał z poziomu 4 i w około dwie minuty doszedł do poziomu 6. Taśmy 0–4 są pełne, na 6 już są ślady. Świeża dokładność grupy przy wejściu na 5 była około 0,54, zamrożony sampler około 0,14. Ziarno 4 zostało świeże. Pętla sprawdzenia co godzinę zostaje włączona.
+- 2026-10-10: poziomy 4–6 dostają zadanie z faktu. W oknie jest teza, taktyka jest wypowiedzią. Kernel ją ocenia. Snapshot z powrotem wiesza fakty, bo wcześniej strony z `call eN` nie parsiły się. Zegar warsztatu po wznowieniu liczy czas nowego procesu, a numer rundy idzie dalej. Metryka dopisuje się co 10 rund. Na żywej półce sampler trafia około 12 na 60 na poziomie 4.
+- 2026-10-10: po około 7 godzinach proces dalej żyje. Schemat zszedł: stan `(13, R1, 0)`, półka ma parzystość i trzy fakty wspólne, mnożenia, sumy, NWD i potęgi nie ma. Warsztat jest na poziomie 4, taśmy poziomów 0–3 są pełne (256). Poziomy 4–6 nie mają treści zadania, więc nowe kroki AdamW tam nie idą. `metrics.csv` został przy ostatniej paczce schematu. Ziarno 4 bez zmian.
+- 2026-10-10: prompt 2 v2.1. Bieg `python -m kanon.v2 --seed 0` wstał z zapisu i został w procesie. Trójka `(3, R1, 120000)`. Na taśmie grupy są 4 ślady, jeden przyjęty komunikat skopiowany na cztery sieci. Wagi ziaren 0–3 różnią się od świeżego `build_net`, ziarno 4 jest bitowo świeże. Proces nie był zatrzymywany.
+- 2026-10-10: prompt 1 v2.1. Wypowiedź ćwiczenia i krok AdamW są w `python -m kanon.v2`. Przy ε = 1 mówi sampler złożeń dwóch kart, poniżej 1 sieć od prefiksu 176. Trafienie grupy rusza sieci 0–3, solo tylko sieć 5, ziarno 4 stoi. Term przyjęty ze schematu wchodzi na taśmę grupy bez forwardu produkcji. Drugie uruchomienie z `resume.pt` i snapshotem wczytuje trójkę i półkę, bez drugiego przeglądu. `pytest -q`: 219 passed. Długi bieg tym promptem nie wystartował.
+- 2026-10-10: luka biegu wobec planu jest w `PROMPTS_V2.1.md`. Prompt 1 dopina wypowiedź ćwiczenia i krok AdamW do `python -m kanon.v2`, oraz wczytanie `resume.pt` razem z półką ze snapshotu. Prompt 2 odpala ten bieg i pilnuje, aż waga grupy ruszy się od przyjętego śladu. Kodu jeszcze nie zmieniałem. Długiego biegu nie zatrzymywałem.
 - 2026-10-10: README opisuje v2 jako bieżący bieg. v1 jest w sekcji wycofanej, razem z nocną pętlą. Drugie uruchomienie `python -m kanon.v2` nie wczytuje `resume.pt`.
 - 2026-10-10: piąty przebieg promptu 23, sam odczyt. Osiemnaście punktów znowu jest zgodnych albo przyjętych. Sześć dziur przy arności 1 zostaje przyjętym odchyleniem. Ostatnia linia nowej sekcji „## Kontrola” to `WSZYSTKO DOBRZE`. Kodu nie zmieniano. Testów nie odpalano. Biegu wielodniowego nie było. `runs/0/` nie był otwierany.
 - 2026-10-10: czwarty przebieg promptu 23, sam odczyt. Osiemnaście punktów znowu jest zgodnych albo przyjętych. Sześć dziur przy arności 1 zostaje przyjętym odchyleniem. Ostatnia linia nowej sekcji „## Kontrola” to `WSZYSTKO DOBRZE`. Kodu nie zmieniano. Testów nie odpalano. Biegu wielodniowego nie było. `runs/0/` nie był otwierany.
@@ -207,17 +223,22 @@ Cztery plastyczne sieci w zamkniętym języku termów mają zbudować kanon proc
 - [x] Prompt 23 v2, trzeci przebieg. Nowa sekcja „## Kontrola” kończy się na `WSZYSTKO DOBRZE`. Kodu nie zmieniano.
 - [x] Prompt 23 v2, czwarty przebieg. Nowa sekcja „## Kontrola” kończy się na `WSZYSTKO DOBRZE`. Kodu nie zmieniano.
 - [x] Prompt 23 v2, piąty przebieg. Nowa sekcja „## Kontrola” kończy się na `WSZYSTKO DOBRZE`. Kodu nie zmieniano.
+- [x] Prompt 1 v2.1 — wypowiedź i krok w `python -m kanon.v2`. `pytest -q`: 219 passed. Długi bieg nie wystartował.
+- [x] Prompt 2 v2.1 — bieg wstał z `(3, R1, 80000)` i uczy się. Zapis przy `(3, R1, 120000)`, 4 ślady grupy, ziarna 0–3 ruszone, ziarno 4 stoi. Proces zostawiony.
 
 ## Next steps
 
 1. Pętla 23–24 jest skończona. Werdykt czytać z ostatniej linii ostatniej sekcji „## Kontrola”.
-2. `runs/0/` zostaje świadectwem v1. `python -m kanon.run` bez zmian. Biegu wielodniowego z tej sesji nie było.
+2. `runs/0/` zostaje świadectwem v1. `python -m kanon.run` bez zmian.
+3. Bieg v2 żyje i uczy się. Nie startować drugiego `python -m kanon.v2`. Zatrzymanie to Ctrl-C. Wznowienie wczyta `resume.pt` i półkę.
 
 ## Blockers / open questions
 
 - Import torch wypisuje ostrzeżenie, że nie ma NumPy. Test przechodzi. NumPy nie jest w `requirements.txt` i nie wchodzi w zakres promptu 1.
 
 ## Verification
+
+- 2026-10-10: `PROMPTS_V2.1.md` zapisany. Kodu v2 nie zmieniano. Długiego biegu nie zatrzymywano i nie uruchamiano ponownie.
 
 - 2026-10-09: `.venv` z Python 3.12 (`/opt/homebrew/bin/python3.12`; systemowy `python3` to 3.9 i nie spełnia `docs/SETUP.md`).
 - `pip install torch --index-url https://download.pytorch.org/whl/cpu` oraz `pip install pytest`.
@@ -267,6 +288,8 @@ Cztery plastyczne sieci w zamkniętym języku termów mają zbudować kanon proc
 - 2026-10-10: trzeci przebieg promptu 23. Nowa sekcja „## Kontrola” kończy się na `WSZYSTKO DOBRZE`. Kodu nie zmieniano. Testów nie odpalano. Biegu wielodniowego nie było. `runs/0/` nie był otwierany.
 - 2026-10-10: czwarty przebieg promptu 23. Nowa sekcja „## Kontrola” kończy się na `WSZYSTKO DOBRZE`. Kodu nie zmieniano. Testów nie odpalano. Biegu wielodniowego nie było. `runs/0/` nie był otwierany.
 - 2026-10-10: piąty przebieg promptu 23. Nowa sekcja „## Kontrola” kończy się na `WSZYSTKO DOBRZE`. Kodu nie zmieniano. Testów nie odpalano. Biegu wielodniowego nie było. `runs/0/` nie był otwierany.
+- 2026-10-10: prompt 1 v2.1. `tests/test_v2_voice.py` najpierw padał przy zbieraniu na braku `Scores`. Po wypowiedzi, kroku, śladzie schematu i wznowieniu półki: `pytest -q` 219 passed. To samo ostrzeżenie NumPy. Długi bieg nie wystartował. `runs/0/` nie był otwierany.
+- 2026-10-10: prompt 2 v2.1. Proces wstał z `(3, R1, 80000)`. Po paczkach zapis jest `(3, R1, 120000)`, taśma grupy ma 4 ślady, wagi 0–3 różnią się od świeżego ziarna, ziarno 4 nie. Proces został włączony. `runs/0/` nie był otwierany.
 
 ## Przegląd zgodności
 

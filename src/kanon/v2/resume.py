@@ -20,6 +20,13 @@ WORKSHOP_ROUNDS = 50
 WORKSHOP_SECONDS = 120
 
 
+def arm_workshop(session: "Session") -> int:
+    """Nowa oś czasu procesu. Numer rundy idzie dalej od ostatniego zapisu."""
+    start = int(session.clock.since_round)
+    session.clock.since_time = 0.0
+    return start
+
+
 class WorkshopClock:
     """Liczy od ostatniego zapisu. 50 rund albo 120 sekund."""
 
@@ -53,6 +60,9 @@ class Session:
             "solo": (),
         }
         self.clock = WorkshopClock()
+        self.clocks_state = None
+        self.solo_clocks_state = None
+        self.solo_tape: dict[tuple[int, int], tuple[tuple[int, ...], ...]] = {}
 
     def package(self, shape: object, clock) -> int:
         """Jedna paczka. Zapis jest po niej, nie w jej trakcie."""
@@ -86,6 +96,9 @@ class Session:
             },
             "since_round": self.clock.since_round,
             "since_time": self.clock.since_time,
+            "clocks": self.clocks_state,
+            "solo_clocks": self.solo_clocks_state,
+            "solo_tape": _trim(self.solo_tape),
         }
         return _commit(self.directory / "resume.pt", payload)
 
@@ -107,7 +120,17 @@ class Session:
         }
         session.clock.since_round = data["since_round"]
         session.clock.since_time = data["since_time"]
+        session.clocks_state = data.get("clocks")
+        session.solo_clocks_state = data.get("solo_clocks")
+        session.solo_tape = _rows(data.get("solo_tape") or {})
         return session
+
+
+def _rows(raw: dict) -> dict[tuple[int, int], tuple[tuple[int, ...], ...]]:
+    return {
+        (int(key[0]), int(key[1])): tuple(tuple(item) for item in row)
+        for key, row in raw.items()
+    }
 
 
 def _trim(

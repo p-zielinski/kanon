@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from kanon.v2.resume import DEFAULT_DIR, Session
+from kanon.v2.resume import DEFAULT_DIR, Session, arm_workshop
 
 _V1 = Path("runs/0/resume.pt")
 _V2 = Path("runs/v2-seed0/resume.pt")
@@ -16,6 +16,16 @@ def test_fiftieth_round_saves_before_two_minutes(tmp_path: Path):
     assert session.workshop(99, 129) is False
     assert session.workshop(100, 129) is True
     assert _sizes() == (before, default)
+
+
+def test_a_resumed_clock_uses_the_new_process_timebase(tmp_path: Path):
+    session = Session(tmp_path)
+    session.clock.since_round = 800
+    session.clock.since_time = 50_000
+    assert arm_workshop(session) == 800
+    assert session.clock.since_time == 0
+    assert session.clock.due(849, 10) is False
+    assert session.clock.due(850, 119) is True
 
 
 def test_two_minutes_save_before_the_fiftieth_round(tmp_path: Path):
