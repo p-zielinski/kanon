@@ -25,9 +25,9 @@ def test_pred_zero_is_zero():
 
 def test_if0_branch_order_matches_addition():
     # (if0 cond zero-branch nonzero-branch).
-    # PROMPTS.md podaje dla tych dwóch termów wyniki 0 i 1. Ten porządek
-    # bierze gałąź else przy zerze i sprawia, że def dodawania z PLAN.md
-    # nie dochodzi do 5. Ten sam prompt wymaga 5, więc zero bierze pierwszą gałąź.
+    # The v1 prompts give these two terms the results 0 and 1. That order
+    # takes the else branch at zero, so the addition def from docs/v1-plan.md
+    # does not reach 5. The same prompt requires 5, so zero takes the first branch.
     assert reduce_expr(parse_expr("(if0 (zero) (succ (zero)) (zero))")) == 1
     assert reduce_expr(parse_expr("(if0 (succ (zero)) (succ (zero)) (zero))")) == 0
 

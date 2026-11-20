@@ -131,6 +131,6 @@ def test_readme_keeps_the_v1_loop_and_describes_one_v2_process():
     assert "while true; do PYTHONPATH=src python -m kanon.run --seed 0 || exit; done" in text
     assert "python -m kanon.v2 --seed 0" in text
     assert "runs/v2-seed0/" in text
-    assert "GPU nie jest wymagane" in text
-    assert "Piątej sieci nie ma" in text
-    assert "Ta pętla jest opisem v1" in text
+    assert "A GPU is not required." in text
+    assert "There is no fifth network." in text
+    assert "That loop describes v1." in text

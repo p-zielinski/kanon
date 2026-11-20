@@ -1,11 +1,11 @@
 """Tokeny, parser i kształty komunikatów języka Kalk.
 
-Słownik `TOKENS` jest listą z PLAN.md. Głowy `propose`, `use`, `solve`,
+Słownik `TOKENS` jest listą z docs/v1-plan.md. Głowy `propose`, `use`, `solve`,
 `break` i `abstain` nie są w tej liście, a parser komunikatów je przyjmuje,
 bo bez nich nie da się zapisać kształtów z sekcji „Role”.
 
 `(if0 cond zero-branch nonzero-branch)`: zero bierze pierwszą gałąź.
-Inaczej definicja dodawania z PLAN.md nie redukuje się do 5.
+Inaczej definicja dodawania z docs/v1-plan.md nie redukuje się do 5.
 """
 
 from __future__ import annotations
