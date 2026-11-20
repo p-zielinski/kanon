@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kanon v2.1, the closed run</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,620&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* viewport-base.css */
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--stage-bg, #000); }
+.deck-viewport { position: fixed; inset: 0; overflow: hidden; background: var(--stage-bg, #000); }
+.deck-stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0; background: var(--slide-bg, #fff); }
+.slide { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; display: block; visibility: hidden; opacity: 0; pointer-events: none; background: var(--slide-bg, #fff); }
+.slide.active, .slide.visible { visibility: visible; opacity: 1; pointer-events: auto; z-index: 1; }
+img, video, canvas, svg { max-width: 100%; max-height: 100%; }
+.deck-controls { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 1000; }
+@media print {
+  html, body { width: 1920px; height: auto; overflow: visible; background: #fff; }
+  .deck-viewport { position: static; overflow: visible; background: #fff; }
+  .deck-stage { position: static; width: auto; height: auto; transform: none !important; background: none; }
+  .slide { position: relative; display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; width: 1920px; height: 1080px; break-after: page; page-break-after: always; }
+  .slide:last-child { break-after: auto; page-break-after: auto; }
+  .deck-controls { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; }
+}
+:root {
+  --stage-bg: #0e0c09;
+  --slide-bg: #14110c;
+  --ink: #f4ead8;
+  --dim: #b5a78f;
+  --copper: #e07a3d;
+  --line: #3d3428;
+  --card: #1e1a14;
+}
+* { box-sizing: border-box; }
+.slide {
+  color: var(--ink);
+  font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  padding: 72px 88px 64px;
+  background:
+    radial-gradient(900px 420px at 100% 0%, rgba(224,122,61,0.16), transparent 60%),
+    linear-gradient(180deg, #1a1611 0%, #14110c 40%, #100e0b 100%);
+}
+.kicker { letter-spacing: 0.22em; text-transform: uppercase; color: var(--copper); font-size: 18px; margin: 0 0 18px; }
+h1 { font-family: Fraunces, "Iowan Old Style", Palatino, serif; font-weight: 620; font-size: 92px; line-height: 0.95; margin: 0 0 24px; letter-spacing: -0.03em; }
+h2 { font-family: Fraunces, "Iowan Old Style", Palatino, serif; font-weight: 620; font-size: 64px; line-height: 1.02; margin: 0 0 28px; letter-spacing: -0.03em; }
+p, li { font-size: 26px; line-height: 1.38; color: var(--ink); }
+.lead { font-size: 32px; line-height: 1.35; max-width: 1500px; color: var(--dim); }
+ul { margin: 0; padding-left: 28px; }
+li { margin: 10px 0; }
+.grid { display: grid; gap: 22px; }
+.g3 { grid-template-columns: 1fr 1fr 1fr; }
+.g2 { grid-template-columns: 1.1fr 0.9fr; }
+.card { background: var(--card); border: 1px solid var(--line); padding: 26px 28px 22px; }
+.card h3 { font-family: Fraunces, Palatino, serif; font-size: 34px; margin: 0 0 10px; }
+.card p, .card li { font-size: 22px; color: var(--dim); }
+.num { font-family: Fraunces, Palatino, serif; font-size: 72px; color: var(--copper); line-height: 1; margin: 0; }
+.lbl { font-size: 18px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); margin-top: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 22px; }
+th { text-align: left; color: var(--copper); font-weight: 500; font-size: 16px; letter-spacing: 0.12em; text-transform: uppercase; padding: 10px 12px; border-bottom: 1px solid var(--copper); }
+td { padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.foot { position: absolute; left: 88px; right: 88px; bottom: 36px; display: flex; justify-content: space-between; color: var(--dim); font-size: 16px; letter-spacing: 0.14em; text-transform: uppercase; }
+.deck-controls { color: #f4ead8; font-family: "IBM Plex Mono", monospace; font-size: 14px; background: rgba(20,17,12,0.85); border: 1px solid #3d3428; padding: 8px 16px; }
+.rule { height: 2px; width: 180px; background: var(--copper); margin: 18px 0 28px; }
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+<div class="deck-stage" id="stage">
+
+<section class="slide active">
+  <p class="kicker">Kanon · closed 2026-10-11 · 19:06 local</p>
+  <h1>Four networks learned a tactic. They did not build an arithmetic canon.</h1>
+  <div class="rule"></div>
+  <p class="lead">v2.1 stopped on purpose after 19 hours 25 minutes on CPU. Exit 143 is that stop. State (13, R1, 0), workshop level 6, round 1,323,201. Group accuracy on the last 200 rows sat near 0.84. The frozen sampler stayed near 0.17.</p>
+  <div class="foot"><span>test-llm</span><span>01</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">Three experiments</p>
+  <h2>Only v1 and v2 exist in code.</h2>
+  <table>
+    <tr><th>Experiment</th><th>Shape</th><th>Where it stands</th></tr>
+    <tr><td>v1</td><td>Four role-rotating networks, one solo, one frozen reader of the same canon.</td><td>Retired. runs/0/ is the witness: 1218 events. Do not resume it.</td></tr>
+    <tr><td>v2</td><td>Six networks. A reducer searches a fixed shape list, then a workshop drills the shelf.</td><td>Implemented. The long run is closed. Directory runs/v2-seed0/.</td></tr>
+    <tr><td>v3</td><td>Frozen language models plus an optional Lean check, scored by a counterfactual transfer test.</td><td>Not implemented. No src/v3/. The plan does not train weights.</td></tr>
+  </table>
+  <p>PyTorch is the tensor engine. No language-model checkpoint is loaded. There is no fifth network.</p>
+  <div class="foot"><span>map</span><span>02</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">The question</p>
+  <h2>Can random weights, inside a closed term language, leave a shelf someone else can use?</h2>
+  <div class="grid g2">
+    <div>
+      <p>v1 asked whether a group curve would separate from solo and from frozen weights on a holdout. Shared memory lives on disk, in the canon, not in the weights.</p>
+      <p>A large model from the internet already knows arithmetic. That measurement would be recall, not construction. Downloading weights was out of scope.</p>
+    </div>
+    <div class="card">
+      <h3>Admission, v1</h3>
+      <p>A definition enters only if the breaker does not kill it, 16 audit inputs agree with the hidden target, and the user calls the new slot in a solution that itself passes the audit.</p>
+    </div>
+  </div>
+  <div class="foot"><span>v1 thesis</span><span>03</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">v1 protocol</p>
+  <h2>Author, breaker, user, outsider. Then one step.</h2>
+  <ul>
+    <li>Roles rotate by one after each round. Round 0, seeds 0-3: author 0, breaker 1, user 2, outsider 3.</li>
+    <li>Sampler is uniform over legal productions, 64-token cap. First rounds run at epsilon = 1.</li>
+    <li>Author body may use zero, succ, pred, if0, var, self, and call only to slots already in the canon. No (num k) in a body.</li>
+    <li>Solo: one network, 4 author proposals, admission after 16 audit inputs, 4 learning steps, no breaker.</li>
+    <li>Frozen weights: outsider architecture, seed stored at the start, step never called.</li>
+    <li>Canon cap 32. After 12 rounds without a call the slot returns to the pool. Every 4 rounds the oldest entry is reduced on its audit pairs.</li>
+  </ul>
+  <div class="foot"><span>Kalk terms only</span><span>04</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">v1 witness · runs/0/</p>
+  <h2>1218 events, zero admissions.</h2>
+  <div class="grid g3">
+    <div class="card"><p class="num">1218</p><p class="lbl">events, and 1218 abstains</p></div>
+    <div class="card"><p class="num">0</p><p class="lbl">admissions to the canon</p></div>
+    <div class="card"><p class="num">0.16</p><p class="lbl">group and frozen, depth 1</p></div>
+  </div>
+  <p style="margin-top:28px">The author target was always (succ (zero)). The task seed omitted the round number. 1209 of 1218 proposals were (def f0 1 (zero)). The breaker message was (abstain f0) every time. One audit matched the target, on round 0, and the definition still fell. Epsilon sat at the floor 0.05 from about round 600. Group and frozen weights at depth 1, rounds 610-1200, both averaged about 0.16. A second breaker was dropped on this read.</p>
+  <div class="foot"><span>do not resume runs/0/</span><span>05</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">Why v2</p>
+  <h2>The reducer searches shapes. The round number enters the seed.</h2>
+  <ul>
+    <li>Two round numbers give two task seeds and two breaker-message seeds. v1 task_seed ignored the round. Its breaker used seed + 20.</li>
+    <li>At epsilon = 1, 20 v2 rounds are not all the same author target. Rounds 0..39 contain at least one (break ...).</li>
+    <li>The schema is a finite list: addition, bounded subtraction, multiplication, comparison, parity, bounded sum, gcd, exponent, then equality and tactic facts.</li>
+    <li>During the schema search the network does not choose the term. The utterance is the exercise, one per package after a floor has closed.</li>
+    <li>One command stays in one process: PYTHONPATH=src python -m kanon.v2 --seed 0. A GPU is not required.</li>
+  </ul>
+  <div class="foot"><span>v2 replaces the social loop</span><span>06</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">Six decoders</p>
+  <h2>Seeds 0-3 group. Seed 4 frozen. Seed 5 solo.</h2>
+  <table>
+    <tr><th>Piece</th><th>Value</th></tr>
+    <tr><td>Each decoder</td><td>4 layers, d_model 128, 4 heads, d_ff 512, dropout 0</td></tr>
+    <tr><td>Group hit</td><td>One trace copied onto all four group tapes. AdamW on seeds 0-3.</td></tr>
+    <tr><td>Solo hit</td><td>Steps only seed 5.</td></tr>
+    <tr><td>Frozen</td><td>Sampler at epsilon = 1. No step. The baseline.</td></tr>
+    <tr><td>Observation</td><td>Padded to 176 tokens. Message starts at index 176. Position table 256, chosen once.</td></tr>
+    <tr><td>Tape</td><td>Ceiling 256 traces per agent and per level. The 257th drops the oldest.</td></tr>
+  </table>
+  <div class="foot"><span>no fifth network</span><span>07</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">Schema floors</p>
+  <h2>Survey, then packages, then a workshop that does not end.</h2>
+  <table>
+    <tr><th>Floor</th><th>What closes it</th></tr>
+    <tr><td>Survey</td><td>Terms up to 16 tokens. If the four families of floor 1 are missing, exit code 1 and an empty directory.</td></tr>
+    <tr><td>2</td><td>Addition on pairs 0..6. Bounded subtraction, max(x-y, 0), lands and does not close the floor alone. Start state: floor 2, shape R1, index 0.</td></tr>
+    <tr><td>3-8</td><td>Multiplication, comparison (1 when x &lt;= y), parity on 0..10, bounded sum, gcd, exponent with 0^0 = 1. No shapes C1 or C2.</td></tr>
+    <tr><td>9-12</td><td>Facts E, W, C, then I. C ceiling: 8 tactics and 80 tokens. A ninth tactic is dropped.</td></tr>
+    <tr><td>Package</td><td>2000 terms or 2 minutes, then resume.pt and canon/snapshot.json. A metrics row every 10 packages.</td></tr>
+  </table>
+  <div class="foot"><span>R2 is many hours</span><span>08</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">Workshop</p>
+  <h2>Levels 0-3 compose cards. Levels 4-6 ask for a tactic.</h2>
+  <div class="grid g2">
+    <div>
+      <ul>
+        <li>Levels 0-3 are deeper compositions of two cards on the shelf.</li>
+        <li>Levels 4-6: the window holds the claim, the speaker utters a tactic, the kernel grades it.</li>
+        <li>The plan had levels 4-6, and the v2.1 prompts said not to build them yet. The run reached level 4 with an empty task and the steps stopped.</li>
+        <li>Only after tactic tasks were added does the workshop on 4-6 actually train.</li>
+        <li>The workshop has no last round. The stop is a decision.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Clocks</h3>
+      <p>A new level starts at epsilon 1. Author descends by 0.995 to floor 0.25. Executor descends by 0.995 to floor 0.05 only from their first accepted answer on that level. At epsilon = 1 the sampler speaks a legal composition and the network is not called. Below 1 the network starts from the 176-token prefix.</p>
+    </div>
+  </div>
+  <div class="foot"><span>mutation after floor 12</span><span>09</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">What v2.1 tied together</p>
+  <h2>Utterance and AdamW step share one process.</h2>
+  <ul>
+    <li>Before v2.1 the exercise in that command said a constant (abstain f0) and the AdamW step did not run.</li>
+    <li>A group hit calls AdamW on seeds 0-3. Solo only on seed 5. Seed 4 is frozen: a sampler attempt, no step.</li>
+    <li>A second launch with resume.pt and canon/snapshot.json loads the frontier and the shelf.</li>
+    <li>A miss, an abstain, and a message the kernel rejects stay off the tape. An empty tape does not move weights.</li>
+    <li>A ship every 6 hours publishes nothing. The shipper is a stub. Without KANON_V2_TOKEN, events.jsonl records that the ship did not go out, and the process continues.</li>
+  </ul>
+  <div class="foot"><span>prompt 2 condition</span><span>10</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">The closed run</p>
+  <h2>19 h 25 min. Two cores. Almost no stdout.</h2>
+  <div class="grid g3">
+    <div class="card"><p class="num">19:25</p><p class="lbl">hours on CPU</p></div>
+    <div class="card"><p class="num">35,345</p><p class="lbl">metrics rows</p></div>
+    <div class="card"><p class="num">1,323,201</p><p class="lbl">workshop round</p></div>
+  </div>
+  <p style="margin-top:26px">Of those rows, 48 are schema packages and 35,297 are workshop rounds. A row lands every 10 packages and every 10 rounds. A torch warning about missing NumPy did not stop the run. Aside from that warning, nothing went to standard output. Progress is in the files. Resuming the directory would load the last save. Nobody is holding the process now.</p>
+  <div class="foot"><span>runs/v2-seed0/</span><span>11</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">Last save</p>
+  <h2>Level 6, seven cards, three facts.</h2>
+  <table>
+    <tr><th>Field</th><th>Value</th></tr>
+    <tr><td>State</td><td>(13, R1, 0), workshop level 6</td></tr>
+    <tr><td>Workshop round</td><td>1,323,201</td></tr>
+    <tr><td>Shelf</td><td>7 cards</td></tr>
+    <tr><td>Shared pool</td><td>3 facts</td></tr>
+    <tr><td>Traces on the tape</td><td>6936, ceiling 256 per agent and per level</td></tr>
+    <tr><td>Last metrics row</td><td>round 1,323,080: group 0.80, solo 0.66, frozen 0.12</td></tr>
+  </table>
+  <p>Neighboring rows at the end hold the group at 0.78-0.82. Accuracy is a hit on the latest utterances, not an arithmetic score on unseen tasks.</p>
+  <div class="foot"><span>resume.pt + snapshot.json</span><span>12</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">Session log, early</p>
+  <h2>Levels 4-6 had no task, so AdamW did not run there.</h2>
+  <table>
+    <tr><th>When</th><th>State</th><th>What moved</th></tr>
+    <tr><td>Prompt 2 start</td><td>save (3, R1, 120000) after (3, R1, 80000)</td><td>Seeds 0-3 differ from a fresh build_net. Seed 4 bitwise fresh. 4 group traces.</td></tr>
+    <tr><td>After about 7 hours</td><td>(13, R1, 0), workshop level 4</td><td>Seed 4 unchanged. Tapes of levels 0-3 full at 256. Levels 4-6 had no task.</td></tr>
+    <tr><td>After the task fix</td><td>level 4 to level 6 in about two minutes</td><td>Seed 4 stayed fresh. About 0.54 on entering level 5. Frozen about 0.14.</td></tr>
+    <tr><td>Live shelf, before the climb</td><td>level 4</td><td>Sampler about 12 hits out of 60.</td></tr>
+  </table>
+  <div class="foot"><span>notes from 2026-10-10 and 2026-10-11</span><span>13</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">Session log, level 6 hours</p>
+  <h2>Weight sum of seed 0 kept moving. Seed 4 stayed fresh.</h2>
+  <table>
+    <tr><th>Hour</th><th>Rounds</th><th>Weight sum moved</th><th>Group</th><th>Frozen</th></tr>
+    <tr><td>First</td><td>972,601 to 990,151</td><td>2.16</td><td>about 0.82</td><td>about 0.16</td></tr>
+    <tr><td>Second</td><td>990,151 to 1,007,651</td><td>3.12</td><td>about 0.92</td><td>about 0.10</td></tr>
+    <tr><td>Third</td><td>1,007,651 to 1,024,951</td><td>2.98</td><td>about 0.82</td><td>about 0.22</td></tr>
+    <tr><td>Fourth, 04:48</td><td>1,042,151 to 1,059,701</td><td>3.47</td><td>level 6, seed 4 fresh</td><td></td></tr>
+    <tr><td>Fourth, other read</td><td>1,024,951 to 1,042,151</td><td>3.50</td><td>about 0.81</td><td>about 0.22</td></tr>
+    <tr><td>Fifth, about 05:50</td><td>1,059,801 to 1,077,101</td><td>2.90</td><td>about 0.76</td><td>about 0.30</td></tr>
+    <tr><td>Sixth, about 06:50</td><td>1,077,101 to 1,094,001</td><td>2.94</td><td>about 0.86</td><td>about 0.16</td></tr>
+    <tr><td>About 07:50</td><td>1,094,001 to 1,121,951</td><td>5.12</td><td>about 0.90</td><td>about 0.16</td></tr>
+  </table>
+  <div class="foot"><span>one note said a ceiling of 1024; plan and close use 256</span><span>14</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">The shelf</p>
+  <h2>Six families came down. The deep facts did not.</h2>
+  <div class="grid g2">
+    <div>
+      <p>Families: constant 0, identity, constant 1, successor, addition, subtraction, parity.</p>
+      <p>Three shared facts, all shallow:</p>
+      <ul>
+        <li>E: (zero) equals (call e4 (zero) (zero)), zero and adding zero to zero.</li>
+        <li>W: (call e0 (zero)) rewrites to (zero), the constant zero.</li>
+        <li>C: the same equality as E, as a short chain.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Not on the shelf</h3>
+      <p>Multiplication, comparison, bounded sum, gcd, and exponent. There is no file of 50 tasks. The luka column is empty for the whole run. Package columns for addition, multiplication, and fact E stayed empty, even though addition is on the shelf: the milestone counter did not store the package index.</p>
+    </div>
+  </div>
+  <div class="foot"><span>schema passed those families; the workshop trained on zero</span><span>15</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">Learning condition</p>
+  <h2>Seeds 0, 1, 2, 3, and solo differ from a fresh build_net.</h2>
+  <p>Seed 4 is bitwise fresh. That is the learning condition from prompt 2, and it was met.</p>
+  <table>
+    <tr><th>Slice</th><th>Group</th><th>Solo</th><th>Frozen</th></tr>
+    <tr><td>Level 4, 94 rows, from 0.13 to 0.54</td><td>mean 0.34</td><td>0.53</td><td>0.15</td></tr>
+    <tr><td>Level 5, 69 rows</td><td>mean 0.32</td><td>0.63</td><td>0.15</td></tr>
+    <tr><td>Level 6, first 200 rows</td><td>0.47</td><td>0.61</td><td>0.17</td></tr>
+    <tr><td>Level 6, middle, 200 rows</td><td>0.83</td><td>0.63</td><td>0.15</td></tr>
+    <tr><td>Level 6, last 200 rows</td><td>0.84</td><td>0.65</td><td>0.17</td></tr>
+  </table>
+  <div class="foot"><span>frozen column is epsilon = 1, no step</span><span>16</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">How to read the gap</p>
+  <h2>On level 6 the group entered near 0.47 and stayed near 0.84.</h2>
+  <div class="grid g3">
+    <div class="card"><p class="num">0.84</p><p class="lbl">group, last 200 rows</p></div>
+    <div class="card"><p class="num">0.65</p><p class="lbl">solo, last 200 rows</p></div>
+    <div class="card"><p class="num">0.17</p><p class="lbl">frozen sampler</p></div>
+  </div>
+  <p style="margin-top:28px">Solo is above the sampler and below the group. The frozen sampler stayed around 0.17 for the whole of level 6. Four networks learned, on this shelf, to utter a tactic the kernel accepts clearly more often than the network whose weights do not move. That is the v2.1 result.</p>
+  <div class="foot"><span>a hit rate, not a holdout score</span><span>17</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">What the run is not</p>
+  <h2>There is no arithmetic canon from this run.</h2>
+  <ul>
+    <li>The schema passed multiplication, sum, gcd, and exponent. The facts the workshop trained on are three strings about zero.</li>
+    <li>Fifty tasks were planned once the frontier left floor 8. That file was not created. The gap column stayed empty.</li>
+    <li>A gap of 2 and a gap of 20 would still mean six networks. The code has no threshold that starts a fifth network.</li>
+    <li>The planned workshop has no last round, so the stop is a decision, not the exhaustion of a shape.</li>
+    <li>v1's 1218-event read did not support a second breaker. v2 did not revive that agent.</li>
+  </ul>
+  <div class="foot"><span>honest limit</span><span>18</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">Files</p>
+  <h2>The conclusion is in the docs. The weights stay out of git.</h2>
+  <table>
+    <tr><th>File</th><th>What is in it</th></tr>
+    <tr><td>runs/v2-seed0/metrics.csv</td><td>A row every 10 packages and every 10 rounds. Gitignored.</td></tr>
+    <tr><td>runs/v2-seed0/resume.pt</td><td>Weights, optimizers, tapes, round 1,323,201, level 6. Do not commit.</td></tr>
+    <tr><td>runs/v2-seed0/canon/snapshot.json</td><td>Shelf, three facts, level 6.</td></tr>
+    <tr><td>docs/v2.1-result.md</td><td>The closed-run table this deck quotes.</td></tr>
+    <tr><td>docs/v2-plan.md</td><td>The plan, against which the run is incomplete.</td></tr>
+    <tr><td>docs/history.md</td><td>The prompts this run carried out, including the 1218-event read.</td></tr>
+  </table>
+  <div class="foot"><span>short smoke uses /tmp, not this directory</span><span>19</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">v3, not in this tree</p>
+  <h2>A future counterfactual. It does not train.</h2>
+  <p class="lead">Frozen language models would grow a typed graph of integer-arithmetic claims. A Python clerk would score transfer by a Full versus Ablation versus Empty counterfactual. Lean 4 is an optional later milestone in that plan.</p>
+  <ul>
+    <li>Nothing under src/kanon/ imports it.</li>
+    <li>python -m v3 does not exist.</li>
+    <li>The plan is docs/future/v3-plan.md.</li>
+  </ul>
+  <div class="foot"><span>out of the closed run</span><span>20</span></div>
+</section>
+
+<section class="slide">
+  <p class="kicker">Close</p>
+  <h1>Learned a tactic on seven cards. Stopped while the shelf was still shallow.</h1>
+  <div class="rule"></div>
+  <p class="lead">Group 0.84, solo 0.65, frozen 0.17 on the last slice of level 6. Seed 4 bitwise fresh. Three facts about zero. Multiplication, gcd, and exponent never became the training shelf. The process is not running.</p>
+  <div class="foot"><span>2026-10-11</span><span>21</span></div>
+</section>
+
+</div>
+</div>
+<div class="deck-controls" id="hud">arrows or space · 1 / 21</div>
+<script>
+(function () {
+  const stage = document.getElementById('stage');
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  let i = 0;
+  function fit() {
+    const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    const x = (window.innerWidth - 1920 * s) / 2;
+    const y = (window.innerHeight - 1080 * s) / 2;
+    stage.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')';
+  }
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((el, k) => el.classList.toggle('active', k === i));
+    document.getElementById('hud').textContent = 'arrows or space · ' + (i + 1) + ' / ' + slides.length;
+  }
+  window.addEventListener('resize', fit);
+  window.addEventListener('keydown', (e) => {
+    if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); show(i + 1); }
+    if (['ArrowLeft', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); show(i - 1); }
+    if (e.key === 'Home') show(0);
+    if (e.key === 'End') show(slides.length - 1);
+  });
+  document.querySelector('.deck-viewport').addEventListener('click', (e) => {
+    if (e.clientX > window.innerWidth * 0.5) show(i + 1); else show(i - 1);
+  });
+  fit();
+  show(0);
+})();
+</script>
+</body>
+</html>

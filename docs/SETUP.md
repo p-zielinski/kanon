@@ -1,27 +1,27 @@
-# Środowisko
+# Environment
 
-Grok wykonuje te kroki sam w katalogu repozytorium. Nie ma nic do pobrania z Hugging Face ani z żadnego repozytorium wag.
+Do this in the repository root. There is nothing to download from Hugging Face or from any weight repository.
 
-## Czego nie pobierać
+## What not to install
 
-Eksperyment startuje z losowych wag. Checkpoint modelu językowego psuje pomiar (patrz `PLAN.md`, sekcja „Poza zakresem v1”).
+The experiment starts from random weights. A language-model checkpoint would spoil the measurement. See [v1-plan.md](v1-plan.md), section "Out of scope for v1".
 
-Nie uruchamiaj i nie wpisuj do zależności:
+Do not run, and do not add as dependencies:
 
-- `transformers` z pobraniem modelu,
+- `transformers` together with a model download,
 - `huggingface_hub`, `ollama`, `llama-cpp-python`,
-- żadnego pliku `.gguf`, `.safetensors`, `.bin` z wagami cudzego modelu.
+- any `.gguf`, `.safetensors`, or `.bin` file of someone else's model.
 
-`torch` jest silnikiem tensorów i autogradu. Wagi powstają w `src/kanon/model.py` przez inicjalizację losową.
+`torch` is the tensor and autograd engine. Weights are created in `src/kanon/model.py` and `src/kanon/v2/model.py` by random initialization.
 
-## Wersje
+## Versions
 
-- Python 3.11 albo 3.12.
-- CPU wystarcza. Sieć ma `d_model` 128 i cztery kopie. GPU jest zbędne w v1.
+- Python 3.11 or 3.12. On the machine that built this tree, Python 3.12 was `/opt/homebrew/bin/python3.12`. The system `python3` was 3.9 and does not meet this file.
+- CPU is enough. Each network has `d_model` 128. v1 has four copies. v2 builds six. A GPU is not required.
 
-## Instalacja
+## Install
 
-Z katalogu głównego repozytorium:
+From the repository root:
 
 ```bash
 python3 -m venv .venv
@@ -31,24 +31,21 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install pytest
 ```
 
-`requirements.txt` w katalogu głównym:
+Root `requirements.txt` lists `torch` and `pytest`. The comment at the top says weights come from random initialization and the install is only the library.
 
-```
-torch
-pytest
-```
+The recorded install on 2026-10-09 was torch 2.14.1 from the CPU index and pytest 9.1.1. `pytest -q` then reported 1 passed (`test_torch_import`) plus a warning that NumPy was missing.
 
-Komentarz na górze `requirements.txt`: wagi biorą się z losowej inicjalizacji, instalacja to wyłącznie biblioteka.
-
-## Sprawdzenie
+## Check
 
 ```bash
 python -c "import torch; t = torch.nn.Linear(8, 8); print(torch.__version__, tuple(t.weight.shape))"
-pytest -q
+PYTHONPATH=src python -m pytest -q
 ```
 
-Oczekiwane: wersja torch wypisana, kształt `(8, 8)`, pytest zielony (na pustym szkielecie dopuszczalny jest jeden test `test_torch_import`).
+Expected: a torch version is printed, the shape is `(8, 8)`, and pytest is green. The NumPy warning is not a failure. Do not add NumPy to chase that warning.
 
-## Sprzęt i czas
+## Hardware and time
 
-Smoke 20 rund ma kończyć się na CPU w kilka minut. Jeśli pojedyncza runda trwa dłużej niż około 30 sekund, najpierw sprawdź, czy reduktor nie dostaje paliwa większego niż 256 i czy sieć nie jest większa niż w tabeli parametrów w `PLAN.md`. Nie powiększaj modelu, żeby „szybciej się uczył”.
+The 20-round v1 smoke should finish on CPU in a few minutes. If a single v1 round takes longer than about 30 seconds, check that the reducer is not given more than 256 fuel and that the network is not larger than the parameter table in [v1-plan.md](v1-plan.md). Do not enlarge the model so that it "learns faster".
+
+The default v2 command is not a smoke. One package is 2000 terms or 2 minutes. R2 is hours. The closed run in [v2.1-result.md](v2.1-result.md) ran 19 hours 25 minutes on CPU, about two cores, and was stopped on purpose. Use the short command in the README when you only want to see that the process writes `resume.pt`.
